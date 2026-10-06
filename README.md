@@ -87,6 +87,7 @@ One task = one worktree = one branch = one PR. The main checkout stays on the de
 | `hooks/` | Generic hooks, each configured through a Config block, plus `test-hooks.sh` |
 | `patterns/` | Project-specific hook shapes to rewrite for your stack |
 | `tools/` | `git-review`, and pointers to optional extras |
+| `tests/adopt/` | An end-to-end test of `ADOPT.md`: a fresh agent adopts the kit into a simulated setup, then `check.sh` verifies the result |
 
 All hooks fail open: a missing tool or an unparseable payload lets the action through
 rather than blocking your work. The one thing they cannot detect is a check that is installed
