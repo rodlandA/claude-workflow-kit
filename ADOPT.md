@@ -67,7 +67,7 @@ and that the project wins. Then agree on:
   additionally gets a global copy of the commit hook; inside this repo the project copy
   wins. Keep personal language blocks out of the project copy unless the whole team
   agrees: it applies to teammates too.
-- **Which packages**, from the list below. Recommend starting with A.
+- **Which packages**, from the list below. Recommend A and B first: A for git hygiene, B so the agent writes code the way the codebase already does.
 
 ## Step 3: Packages
 
@@ -112,7 +112,15 @@ the project hook denies them.
 If their commit log uses a different convention, follow theirs: adapt the rule and the
 hook to it rather than imposing this one.
 
-### B. Personal working rules
+### B. Working principles and personal rules
+
+`rules/working-principles.md` and `rules/testing-principles.md` are the rules that keep an
+agent from drifting: a new code style, a new directory when a correct one exists, a second
+way of doing something the codebase already does, a test style nobody else uses.
+Recommend both. For a shared repo they go in the project, so every teammate's agent gets
+them; for the user's other repos, also in `~/.claude/rules/`. Usually nothing to adapt —
+if the repo documents its structure or decisions somewhere other than `.claude/rules/`,
+`CLAUDE.md` or `docs/`, name that place in "Look, in this order".
 
 `global/CLAUDE.md` → merged into `~/.claude/CLAUDE.md`. Go section by section. If package A
 is installed **globally**, the Git section shrinks to what A does not cover; if A is
@@ -175,6 +183,7 @@ placement decision:
 | `hooks/remind-rules-budget.sh` | `RULE_REF` → `where-things-go.md` |
 | `rules/branch-workflow.md` | `git review` (package F), `cleaning-up-after-merge` skill |
 | `rules/commits.md` | `branch-workflow.md` |
+| `global/CLAUDE.md` § Working style | `working-principles.md`, when installed globally |
 | `skills/code-review-rubric` | every installed rules file, by name |
 
 ## Step 4: Register hooks

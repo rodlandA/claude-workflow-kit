@@ -61,7 +61,8 @@ One task = one worktree = one branch = one PR. The main checkout stays on the de
    branch directly, or if it is behind origin.
 2. **Create a worktree** as a sibling, `../<repo>-<slug>/`. `open-worktree-in-editor`
    opens it.
-3. **Work.** The agent explains the cause and the proposed fix before editing.
+3. **Work.** The agent explains the cause and the proposed fix before editing, and
+   writes new code the way the codebase already writes it — same place, naming and style.
 4. **Verify.** Run the checks and read the output. `verify-on-stop` can block "done"
    while a check still fails.
 5. **Commit** via the `committing` skill — conventional message, and never without your
@@ -80,7 +81,7 @@ One task = one worktree = one branch = one PR. The main checkout stays on the de
 |------|------|
 | `ADOPT.md` | Instructions for the agent doing the setup |
 | `global/CLAUDE.md` | Personal working rules template |
-| `rules/` | Commits, issues and PRs, branch workflow, comments, where instructions go |
+| `rules/` | Working and testing principles (follow the existing pattern, one mechanism, scope), commits, issues and PRs, branch workflow, comments, where instructions go |
 | `skills/` | `committing`, `creating-pull-requests`, `cleaning-up-after-merge`, `code-review-rubric` (template) |
 | `commands/` | `/commit`, `/pr`, `/review`, `/cleanup-branch` |
 | `hooks/` | Generic hooks, each configured through a Config block, plus `test-hooks.sh` |
