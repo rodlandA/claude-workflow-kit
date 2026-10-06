@@ -1,0 +1,229 @@
+#!/usr/bin/env bash
+# git review [<branch>|<worktree-path>] [--doc|--web] [--base <branch>]
+#
+# Shows everything that would land in a PR: the cumulative diff against the
+# merge-base with the repo's default branch — the exact set of changes GitHub
+# renders under "Files changed".
+#
+#   git review                 side-by-side in the browser, with a file list
+#                              and a viewed checkbox per file
+#   git review feat/foo        another branch, without checking it out
+#   git review ../myrepo-foo   a worktree, by path
+#   git review --doc           unified diff as one document in VS Code
+#   git review --web           GitHub's compare page
+#
+# Never pushes and never commits.
+
+set -euo pipefail
+
+DIFF2HTML_VERSION="5.2.15"
+ASSET_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/git-review"
+
+mode="side"
+base=""
+target=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --web) mode="web"; shift ;;
+        --doc) mode="doc"; shift ;;
+        --base) base="${2:-}"; shift 2 ;;
+        -h|--help) sed -n '2,15p' "$0" | cut -c3-; exit 0 ;;
+        -*) echo "git review: unknown option '$1'" >&2; exit 1 ;;
+        *)
+            if [ -n "$target" ]; then
+                echo "git review: expected at most one branch or path, got '$1' as well" >&2
+                exit 1
+            fi
+            target="$1"
+            shift
+            ;;
+    esac
+done
+
+git rev-parse --git-dir >/dev/null 2>&1 || {
+    echo "git review: not inside a git repository" >&2
+    exit 1
+}
+
+# A target may be a branch name or the path to a worktree; resolve either to a branch.
+if [ -z "$target" ]; then
+    branch=$(git branch --show-current)
+    if [ -z "$branch" ]; then
+        echo "git review: detached HEAD — check out a branch or name one: git review <branch>" >&2
+        exit 1
+    fi
+elif [ -d "$target" ]; then
+    branch=$(git -C "$target" branch --show-current 2>/dev/null || true)
+    if [ -z "$branch" ]; then
+        echo "git review: '$target' is not a git worktree on a branch" >&2
+        exit 1
+    fi
+else
+    branch="$target"
+    if ! git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null; then
+        if git rev-parse --verify --quiet "refs/remotes/origin/$branch" >/dev/null; then
+            branch="origin/$branch"
+        else
+            echo "git review: no such branch, worktree or path: '$target'" >&2
+            exit 1
+        fi
+    fi
+fi
+
+tip=$(git rev-parse "$branch")
+
+if [ -z "$base" ]; then
+    base=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)
+fi
+if [ -z "$base" ]; then
+    for candidate in develop main master; do
+        if git rev-parse --verify --quiet "refs/remotes/origin/$candidate" >/dev/null; then
+            base=$candidate
+            break
+        fi
+    done
+fi
+if [ -z "$base" ]; then
+    echo "git review: could not determine the default branch — pass --base <branch>" >&2
+    exit 1
+fi
+
+if [ "${branch#origin/}" = "$base" ]; then
+    echo "git review: '$branch' is the base branch — there is nothing to compare against" >&2
+    exit 1
+fi
+
+# Refresh the base so the merge-base is accurate; stay usable offline.
+git fetch --quiet origin "+refs/heads/$base:refs/remotes/origin/$base" 2>/dev/null || true
+
+if git rev-parse --verify --quiet "refs/remotes/origin/$base" >/dev/null; then
+    base_ref="origin/$base"
+else
+    base_ref="$base"
+fi
+
+merge_base=$(git merge-base "$base_ref" "$tip")
+
+if [ "$mode" = "web" ]; then
+    remote_url=$(git remote get-url origin 2>/dev/null || true)
+    case "$remote_url" in
+        git@github.com:*|https://github.com/*|ssh://git@github.com/*) ;;
+        *)
+            echo "git review: origin is not a GitHub remote ($remote_url) — drop --web" >&2
+            exit 1
+            ;;
+    esac
+    slug=$(printf '%s' "$remote_url" | sed -E 's|^ssh://git@github\.com/||; s|^git@github\.com:||; s|^https://github\.com/||; s|\.git$||')
+    short=${branch#origin/}
+    if git rev-parse --verify --quiet "refs/remotes/origin/$short" >/dev/null; then
+        ahead=$(git rev-list --count "origin/$short..$tip")
+        if [ "$ahead" -gt 0 ]; then
+            echo "Note: $ahead commit(s) on '$short' are not pushed — the compare page will not show them."
+            echo "      git push origin $short"
+        fi
+    else
+        echo "Note: '$short' does not exist on origin yet — the compare page will be empty."
+        echo "      git push -u origin $short"
+    fi
+    open "https://github.com/$slug/compare/$base...$short"
+    exit 0
+fi
+
+files=$(git diff --name-only "$merge_base".."$tip" | wc -l | tr -d ' ')
+if [ "$files" -eq 0 ]; then
+    echo "git review: '$branch' has no changes against $base_ref"
+    exit 0
+fi
+
+commits=$(git rev-list --count "$merge_base".."$tip")
+repo=$(basename "$(git rev-parse --show-toplevel)")
+safe_branch=$(printf '%s' "${branch#origin/}" | tr '/:' '--')
+stem="${TMPDIR:-/tmp}/review-$repo-$safe_branch"
+
+render_doc() {
+    {
+        echo "# $branch -> $base"
+        echo "# $files file(s), $commits commit(s), diffed against $base_ref"
+        echo "#"
+        git log --format='#   %h %s' "$merge_base".."$tip"
+        echo "#"
+        git diff --stat "$merge_base".."$tip" | sed 's/^/# /'
+        echo
+        git diff "$merge_base".."$tip"
+    } > "$stem.diff"
+
+    if command -v code >/dev/null 2>&1; then
+        code "$stem.diff"
+    else
+        open "$stem.diff"
+    fi
+}
+
+if [ "$mode" = "doc" ]; then
+    render_doc
+    exit 0
+fi
+
+# diff2html links its syntax-highlighting themes from a CDN. Cache them once and
+# inline them, so opening a review makes no network request at all.
+localise_assets() {
+    local html="$1" url name script
+    command -v node >/dev/null 2>&1 || return 0
+    mkdir -p "$ASSET_CACHE"
+
+    for url in $(grep -oE 'href="https://[^"]+\.css"' "$html" | sed -E 's/^href="//; s/"$//' | sort -u); do
+        name=$(basename "$url")
+        if [ ! -s "$ASSET_CACHE/$name" ]; then
+            curl -fsSL --max-time 20 -o "$ASSET_CACHE/$name" "$url" || true
+        fi
+    done
+
+    script=$(mktemp "${TMPDIR:-/tmp}/git-review-inline.XXXXXX.js")
+    cat > "$script" <<'NODE'
+const fs = require('fs');
+const path = require('path');
+const [file, cache] = process.argv.slice(2);
+const html = fs.readFileSync(file, 'utf8').replace(
+    /<link\s+rel="stylesheet"\s+href="https:\/\/[^"]+\/([^/"]+\.css)"([^>]*?)\/?>/g,
+    (whole, name, rest) => {
+        const local = path.join(cache, name);
+        if (!fs.existsSync(local)) {
+            return whole;
+        }
+        const media = (rest.match(/media="([^"]*)"/) || [])[1];
+        const attr = media ? ` media="${media}"` : '';
+        return `<style${attr}>\n${fs.readFileSync(local, 'utf8')}\n</style>`;
+    },
+);
+fs.writeFileSync(file, html);
+NODE
+    node "$script" "$html" "$ASSET_CACHE" || true
+    rm -f "$script"
+}
+
+if command -v diff2html >/dev/null 2>&1; then
+    renderer=(diff2html)
+elif command -v npx >/dev/null 2>&1; then
+    # Pinned: --yes would otherwise run whatever the registry serves that day.
+    renderer=(npx --yes "diff2html-cli@$DIFF2HTML_VERSION")
+else
+    echo "git review: diff2html not available (needs node) — falling back to --doc" >&2
+    render_doc
+    exit 0
+fi
+
+echo "$branch -> $base: $files file(s), $commits commit(s)"
+
+if ! git diff "$merge_base".."$tip" | "${renderer[@]}" \
+        -i stdin -s side --su open --sc --hc \
+        -t "$branch -> $base  ($files files, $commits commits)" \
+        -F "$stem.html" >/dev/null; then
+    echo "git review: diff2html failed — falling back to --doc" >&2
+    render_doc
+    exit 1
+fi
+
+localise_assets "$stem.html"
+
+open "$stem.html"

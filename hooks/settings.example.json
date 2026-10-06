@@ -1,0 +1,34 @@
+{
+  "//": "Two shapes of the same registration. Merge the entries you install into the existing settings file — never replace it.",
+  "global (~/.claude/settings.json)": {
+    "hooks": {
+      "SessionStart": [
+        { "hooks": [{ "type": "command", "command": "$HOME/.claude/hooks/workspace-hygiene.sh" }] }
+      ],
+      "PreToolUse": [
+        { "matcher": "Bash", "hooks": [{ "type": "command", "command": "$HOME/.claude/hooks/lint-commit-message.sh" }] }
+      ],
+      "PostToolUse": [
+        { "matcher": "Bash", "hooks": [{ "type": "command", "command": "$HOME/.claude/hooks/open-worktree-in-editor.sh" }] },
+        { "matcher": "Edit|Write|MultiEdit", "hooks": [{ "type": "command", "command": "$HOME/.claude/hooks/remind-rules-budget.sh" }] }
+      ]
+    }
+  },
+  "project (<repo>/.claude/settings.json)": {
+    "hooks": {
+      "PreToolUse": [
+        { "matcher": "Edit|Write|MultiEdit|NotebookEdit", "hooks": [
+          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gate-path-to-subagent.sh" },
+          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect-generated-files.sh" }
+        ] },
+        { "matcher": "Bash", "hooks": [{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/lint-commit-message.sh" }] }
+      ],
+      "PostToolUse": [
+        { "matcher": "Edit|Write|MultiEdit", "hooks": [{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/remind-on-change.sh" }] }
+      ],
+      "Stop": [
+        { "hooks": [{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/verify-on-stop.sh" }] }
+      ]
+    }
+  }
+}
