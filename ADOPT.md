@@ -125,7 +125,7 @@ if the repo documents its structure or decisions somewhere other than `.claude/r
 `global/CLAUDE.md` → merged into `~/.claude/CLAUDE.md`. Go section by section. If package A
 is installed **globally**, the Git section shrinks to what A does not cover; if A is
 project-only, keep the section whole — it is what applies in every other repo.
-The Code style section is opinion: offer it, don't push it.
+The Code style and Answer shape sections are opinion: offer them, don't push them.
 
 ### C. Keeping instructions lean
 

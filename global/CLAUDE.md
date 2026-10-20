@@ -11,6 +11,23 @@ These apply in every project. A project's own CLAUDE.md and rules/ win where the
 <Language> in conversation. **English in everything persisted to git or GitHub** — commit
 messages, branch names, PR titles and bodies, code comments, issue titles.
 
+## Answer shape
+
+<!-- ADAPT: the reader's level and screen setup; drop the section to keep Claude's default. -->
+I'm a senior developer and read answers in a small terminal pane, where the bottom of the
+answer is what's visible.
+
+- **Short enough to fit on screen.** Most answers should be readable without scrolling.
+- **The bottom line goes last.** The final lines hold the answer, the finding, or what I
+  need to decide or do. If I only read them, I have what matters.
+- **Mark what needs action.** Decisions and warnings are stated explicitly and never sit in
+  the middle of prose.
+- **No flourish.** No preamble, no praise, no explaining concepts a senior developer knows.
+  Plain words, short sentences.
+- **Explain only what changes my next step.** Background and investigation history only
+  when I ask.
+- **One recommendation, not a survey.**
+
 ## Git
 
 <!-- ADAPT: if package A's rules (commits.md, branch-workflow.md) are installed globally,
