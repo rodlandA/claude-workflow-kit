@@ -75,6 +75,17 @@ One task = one worktree = one branch = one PR. The main checkout stays on the de
 9. **After merge**, `cleaning-up-after-merge` removes the worktree and branch and updates
    the default branch.
 
+## Plans you can comment on
+
+The `explaining-visually` skill (package G in `ADOPT.md`) turns a plan or a walkthrough into a
+local page. Click any element to comment, answer the agent's questions, ask for more depth, and
+approve the plan. Each comment reaches the agent with the line it points at, and the page
+reloads with the change outlined.
+
+![A comment on a plan reaches the agent, which revises the plan and replies on the page](docs/explaining-visually.gif)
+
+<sub>Demo recording: the page, the server and the events are real; the agent's edits were written in advance and run on cue.</sub>
+
 ## What is in here
 
 | Path | What |
