@@ -188,6 +188,17 @@ html:is(.vt-side, .vt-side-open, .vt-side-close) :is(.sheet, .panel) { view-tran
 @media (min-width: 840px) {
   html:is(.vt-side, .vt-side-open, .vt-side-close) .bar { view-transition-name: bar; }
   html:is(.vt-side, .vt-side-open, .vt-side-close) :is(.sheet, .panel) > .inner { view-transition-name: side-data; }
+  html:is(.vt-side-open, .vt-side-close) .bar :is(.status, .loader, button) { view-transition-class: bar-item; }
+  html:is(.vt-side-open, .vt-side-close) #status { view-transition-name: bar-status; }
+  html:is(.vt-side-open, .vt-side-close) #general-loader { view-transition-name: bar-loader; }
+  html:is(.vt-side-open, .vt-side-close) #theme { view-transition-name: bar-theme; }
+  html:is(.vt-side-open, .vt-side-close) #changes { view-transition-name: bar-changes; }
+  html:is(.vt-side-open, .vt-side-close) #clear-changes { view-transition-name: bar-clear; }
+  html:is(.vt-side-open, .vt-side-close) #reload { view-transition-name: bar-reload; }
+  html:is(.vt-side-open, .vt-side-close) #list { view-transition-name: bar-list; }
+  html:is(.vt-side-open, .vt-side-close) #send { view-transition-name: bar-send; }
+  html:is(.vt-side-open, .vt-side-close) #approve { view-transition-name: bar-approve; }
+  html:is(.vt-side-open, .vt-side-close) #approved { view-transition-name: bar-approved; }
 }
 @media (max-width: 839px) { html:is(.vt-side-open, .vt-side-close) .scrim { view-transition-name: scrim; } }
 html.vt-theme .theme .knob { view-transition-name: theme-knob; }
@@ -207,17 +218,17 @@ html:not(.vt-theme)::view-transition-new(root) { animation: none; }
 ::view-transition-group(side) { z-index: 3; }
 ::view-transition-group(side-data) { z-index: 4; }
 ::view-transition-group(bar) { z-index: 5; }
-::view-transition-group(theme-knob) { z-index: 6; }
-::view-transition-group(pop), ::view-transition-group(dialog) { z-index: 7; }
+::view-transition-group(*.bar-item) { z-index: 6; }
+::view-transition-group(theme-knob) { z-index: 7; }
+::view-transition-group(pop), ::view-transition-group(dialog) { z-index: 8; }
 @keyframes vt-fade-in { from { opacity: 0; } }
 @keyframes vt-fade-out { to { opacity: 0; } }
 
 /* Desktop sheet: the bar grows into the sheet's top, the sheet unrolls down from it, then the data slides in */
-::view-transition-old(bar), ::view-transition-new(bar) { width: 100%; height: 100%; object-fit: none; object-position: right top; }
-/* Docked or floating, the bar's row sits in the same place against its right edge, so the morph moves one bar */
-::view-transition-group(bar) { overflow: clip; }
-::view-transition-old(bar), ::view-transition-new(bar) { animation-duration: .2s; }
+/* The bar's surface morphs on its own and each control glides to its new place, so the bar survives any reflow */
+::view-transition-old(bar), ::view-transition-new(bar) { width: 100%; height: 100%; animation-duration: .2s; }
 html.vt-side-close::view-transition-old(bar), html.vt-side-close::view-transition-new(bar) { animation-delay: .25s; animation-fill-mode: both; }
+html.vt-side-close::view-transition-group(*.bar-item) { animation-delay: .18s; animation-fill-mode: both; }
 html.vt-side:not(.vt-side-open, .vt-side-close)::view-transition-old(bar) { display: none; }
 html.vt-side:not(.vt-side-open, .vt-side-close)::view-transition-new(bar) { animation: none; }
 html.vt-side-close::view-transition-group(bar) { animation-delay: .18s; animation-fill-mode: both; }
