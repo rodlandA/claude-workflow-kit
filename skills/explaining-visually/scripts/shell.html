@@ -51,10 +51,15 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px;
 code { font-family: var(--mono); font-size: .86em; background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
 
 .layout { display: grid; grid-template-columns: 230px minmax(0, 920px); gap: 40px; padding: 0 24px; margin-left: max(0px, calc((100% - 1238px) * .3)); }
-nav.toc { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow: auto; padding: 72px 0 32px; font-size: 13.5px; }
-nav.toc a { display: block; color: var(--muted); text-decoration: none; padding: 4px 10px; border-left: 2px solid var(--line); }
+nav.toc { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow: auto; padding: 96px 0 32px; font-size: 13.5px; }
+nav.toc a { display: flex; align-items: baseline; gap: 10px; color: var(--muted); text-decoration: none; padding: 5px 10px; border-left: 2px solid var(--line); text-wrap: balance; }
+nav.toc a .n { flex: none; min-width: 2ch; font: 500 11px var(--mono); letter-spacing: .04em; }
 nav.toc a.sub { padding-left: 22px; font-size: 12.5px; }
-nav.toc a.active { color: var(--fg); border-left: 3px solid var(--accent); padding-left: 9px; font-weight: 600; }
+nav.toc a:hover { color: var(--fg); }
+nav.toc a.active { color: var(--fg); border-left-color: var(--accent); }
+nav.toc a.active .n { color: var(--accent); }
+nav.toc a.qlink { margin-bottom: 10px; }
+nav.toc a.qlink .count { margin-left: auto; padding: 0 7px; border-radius: 99px; font: 500 11px/18px var(--mono); background: var(--accent-soft); color: var(--accent); }
 main { padding: 96px 0 120px; min-width: 0; }
 
 h1 { font-size: 38px; font-weight: 650; line-height: 1.1; margin: 0 0 10px; letter-spacing: -.03em; }
@@ -428,7 +433,10 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   nav.toc .keys { display: none; }
   html { scroll-padding-top: calc(var(--bar-h) + 16px); }
   .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; }
-  nav.toc { position: static; max-height: none; padding: calc(var(--bar-h) + 24px) 0 0; }
+  nav.toc { position: static; max-height: none; display: flex; gap: 8px; margin: 0 -16px; padding: calc(var(--bar-h) + 16px) 16px 2px; overflow-x: auto; scrollbar-width: none; }
+  nav.toc a, nav.toc a.sub { flex: none; border: 1px solid var(--line); border-radius: 99px; padding: 6px 12px; margin: 0; white-space: nowrap; background: var(--card); font-size: 13px; }
+  nav.toc a.sub { display: none; }
+  nav.toc a.active { border-color: var(--accent); }
   main { padding-top: 24px; }
   .flow { flex-direction: column; align-items: stretch; }
   .arrow::after { content: "\2193"; }
@@ -588,37 +596,60 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     });
   }
 
+  function tocLink(href, label, number, cls) {
+    const a = document.createElement('a');
+    a.href = href;
+    a.className = cls;
+    a.innerHTML = '<span class="n"></span><span class="t"></span>';
+    a.querySelector('.n').textContent = number;
+    a.querySelector('.t').textContent = label;
+    return a;
+  }
+
   function buildToc() {
     const toc = $('nav.toc');
-    const anchors = [];
+    if ($('.qzone')) {
+      $('.qzone').id = 'questions';
+      toc.appendChild(tocLink('#questions', 'Questions', '?', 'qlink')).insertAdjacentHTML('beforeend', '<span class="count"></span>');
+    }
+    let n = 0;
     document.querySelectorAll('main section > h2, main section h3').forEach((h, i) => {
       const section = h.closest('section');
-      const anchor = h.tagName === 'H2' && section.id ? section : h;
+      const isH2 = h.tagName === 'H2';
+      const anchor = isH2 && section.id ? section : h;
       if (!anchor.id) {
         anchor.id = `h-${i}`;
       }
-      anchors.push(anchor);
-      const a = document.createElement('a');
-      a.href = `#${anchor.id}`;
-      a.textContent = h.textContent;
-      a.className = h.tagName === 'H3' ? 'sub' : '';
-      toc.appendChild(a);
+      n += isH2 ? 1 : 0;
+      toc.appendChild(tocLink(`#${anchor.id}`, h.textContent.trim(), isH2 ? String(n).padStart(2, '0') : '', isH2 ? '' : 'sub'));
     });
-    const links = [...toc.querySelectorAll('a')];
-    const spy = new IntersectionObserver((entries) => {
-      entries.filter((e) => e.isIntersecting).forEach((e) => {
-        links.forEach((a) => a.classList.toggle('active', a.hash === `#${e.target.id}`));
-      });
-    }, { rootMargin: '0px 0px -70% 0px' });
-    anchors.forEach((el) => spy.observe(el));
     toc.insertAdjacentHTML('beforeend', '<div class="keys"><kbd>j</kbd> <kbd>k</kbd> section · <kbd>c</kbd> comment</div>');
+    addEventListener('scroll', spyToc, { passive: true });
+    addEventListener('resize', spyToc);
+    spyToc();
   }
 
   const sectionsOf = () => [...document.querySelectorAll('main section[id]')];
   const landing = () => parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) + 8;
 
+  const lastPassed = (els) => els.filter((el) => el.getBoundingClientRect().top <= landing()).pop() ?? null;
+
   function currentSection() {
-    return sectionsOf().filter((sec) => sec.getBoundingClientRect().top <= landing()).pop() ?? null;
+    return lastPassed(sectionsOf());
+  }
+
+  let spyFrame = 0;
+
+  // The first entry is active above every heading, the last at the bottom even if its top never reaches the landing line.
+  function spyToc() {
+    cancelAnimationFrame(spyFrame);
+    spyFrame = requestAnimationFrame(() => {
+      const links = [...document.querySelectorAll('nav.toc a')];
+      const targets = links.map((a) => document.getElementById(a.hash.slice(1)));
+      const atBottom = innerHeight + scrollY >= document.documentElement.scrollHeight - 2;
+      const active = atBottom ? targets.at(-1) : lastPassed(targets.filter(Boolean)) ?? targets[0];
+      links.forEach((a, i) => a.classList.toggle('active', targets[i] === active));
+    });
   }
 
   function jumpSection(step) {
@@ -945,6 +976,10 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     }
     const open = questions.filter((x) => !answerOf(x)).length;
     zone.querySelector('.qz-head span').textContent = open ? `${plural(open, 'question')} to answer before the plan is final` : 'All answered';
+    const count = $('nav.toc .qlink .count');
+    if (count) {
+      count.textContent = open ? String(open) : '✓';
+    }
     $('.draft-note').hidden = !open;
     const q = nextQuestion();
     if (q !== shownQuestion) {

@@ -193,6 +193,21 @@ async function checkQuestions(browser, url, dir) {
   await page.close();
 }
 
+async function checkToc(browser, url) {
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1000);
+  const active = () => page.evaluate(() => document.querySelector('nav.toc a.active')?.hash ?? null);
+  check((await active()) === '#questions', 'toc: the first entry is active at the top');
+  await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(400);
+  const last = await page.evaluate(() => [...document.querySelectorAll('nav.toc a')].at(-1).hash);
+  check((await active()) === last, 'toc: the last entry is active at the bottom');
+  const numbers = await page.evaluate(() => [...document.querySelectorAll('nav.toc a:not(.qlink, .sub) .n')].map((n) => n.textContent).join());
+  check(numbers === '01,02,03,04', `toc: entries are numbered like the sections (${numbers})`);
+  await page.close();
+}
+
 async function main() {
   check(cssBalanced(), 'shell.html: CSS braces balance');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'explainer-check-'));
@@ -206,6 +221,7 @@ async function main() {
       await checkWidth(browser, url, size);
     }
     await checkQuestions(browser, url, dir);
+    await checkToc(browser, url);
   } finally {
     await browser?.close();
     child.kill();
