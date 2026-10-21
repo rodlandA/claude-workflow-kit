@@ -87,6 +87,29 @@ async function openSheet(page, w) {
   await page.waitForTimeout(700);
 }
 
+const panelHeight = (page) => page.evaluate(() => Math.round(document.querySelector('.panel').getBoundingClientRect().height));
+
+async function dragHandle(page, dy, steps) {
+  const box = await page.locator('.panel .handle').boundingBox();
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y + dy, { steps });
+  await page.mouse.up();
+  await page.waitForTimeout(700);
+}
+
+// Snap points are 30%, 50%, 75% and full height minus the top margin; the sheet opens at 50%.
+async function checkSnaps(page, w, h) {
+  const near = (got, want) => Math.abs(got - want) <= 2;
+  check(near(await panelHeight(page), h * 0.5), `${w}px: bottom sheet opens at the 50% snap point`);
+  await dragHandle(page, -h * 0.2, 25);
+  check(near(await panelHeight(page), h * 0.75), `${w}px: a slow drag settles on the nearest snap point`);
+  await dragHandle(page, 0, 1);
+  check(near(await panelHeight(page), h - (w > 640 ? 56 : 72)), `${w}px: a tap on the handle moves one snap point up`);
+}
+
 async function checkWidth(browser, url, { w, h }) {
   const page = await browser.newPage({ viewport: { width: w, height: h } });
   const errors = [];
@@ -112,6 +135,9 @@ async function checkWidth(browser, url, { w, h }) {
   await page.locator('#list').click();
   await page.waitForTimeout(700);
   check(placedPerSpec(await geometry(page, '.panel'), w), `${w}px: comments panel placed per spec`);
+  if (w < 840) {
+    await checkSnaps(page, w, h);
+  }
   await page.keyboard.press('Escape');
   await page.waitForTimeout(500);
   check((await geometry(page, '.panel')) === null, `${w}px: Esc closes the comments panel`);

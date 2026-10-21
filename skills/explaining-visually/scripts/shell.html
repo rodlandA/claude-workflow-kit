@@ -184,7 +184,7 @@ svg .edge { stroke: var(--muted); stroke-width: 1.5; fill: none; }
 .theme[aria-checked="true"] .moon { opacity: 1; transform: none; }
 .theme[aria-checked="true"] .knob { transform: translateX(24px); background: #eee9df; color: #2c3b4d; }
 /* Every state change runs through animate(kind); html.vt-<kind> names only what that change moves */
-html:is(.vt-side, .vt-side-open, .vt-side-close) :is(.sheet, .panel) { view-transition-name: side; }
+html:is(.vt-side, .vt-side-open, .vt-side-close, .vt-snap) :is(.sheet, .panel) { view-transition-name: side; }
 @media (min-width: 840px) {
   html:is(.vt-side, .vt-side-open, .vt-side-close) .bar { view-transition-name: bar; }
   html:is(.vt-side, .vt-side-open, .vt-side-close) :is(.sheet, .panel) > .inner { view-transition-name: side-data; }
@@ -252,6 +252,9 @@ html.vt-side-close::view-transition-group(bar) { animation-delay: .18s; animatio
   ::view-transition-old(side) { animation: vt-fade-out .1s ease-in forwards; }
   ::view-transition-new(side) { animation: vt-fade-in .25s .1s both; }
 }
+/* Snapping: the box glides to the snap height; the new image sits over the dragged one, so no gap opens below it */
+html.vt-snap::view-transition-group(side) { overflow: clip; border-radius: 28px 28px 0 0; }
+html.vt-snap::view-transition-old(side), html.vt-snap::view-transition-new(side) { animation: none; }
 ::view-transition-new(scrim):only-child { animation: vt-fade-in .3s ease-out; }
 ::view-transition-old(scrim):only-child { animation: vt-fade-out .25s ease-in forwards; }
 @keyframes vt-rise { from { transform: translateY(100%); } }
@@ -396,8 +399,10 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   .bar button { padding: 5px 10px; }
   .bar .actions { width: 100%; }
   .bar, body.sheet-open .bar, body:has(.panel.open) .bar { animation: none; top: 0; right: 0; width: 100%; max-width: none; padding: 8px 16px; border-width: 0 0 1px; border-radius: 0; box-shadow: 0 2px 12px rgba(0,0,0,.06); }
-  .sheet, .panel { top: auto; bottom: 0; padding-top: 0; left: 0; right: 0; margin: 0 auto; width: min(100%, 640px); max-width: none; height: 60dvh; max-height: calc(100dvh - 72px); z-index: 60; border: 1px solid var(--line); border-bottom: 0; border-radius: 28px 28px 0 0; box-shadow: 0 -8px 28px rgba(0,0,0,.18); }
-  .sheet.full, .panel.full { height: calc(100dvh - 72px); }
+  .sheet, .panel { top: auto; bottom: 0; padding-top: 0; left: 0; right: 0; margin: 0 auto; width: min(100%, 640px); max-width: none; height: 50dvh; max-height: calc(100dvh - 72px); z-index: 60; border: 1px solid var(--line); border-bottom: 0; border-radius: 28px 28px 0 0; box-shadow: 0 -8px 28px rgba(0,0,0,.18); }
+  :is(.sheet, .panel)[data-snap="0"] { height: 30dvh; }
+  :is(.sheet, .panel)[data-snap="2"] { height: 75dvh; }
+  :is(.sheet, .panel)[data-snap="3"] { height: calc(100dvh - 72px); }
   .sheet .handle, .panel .handle { display: flex; }
   .sheet header { padding-top: 0; touch-action: none; }
   .sheet .sheet-body, .panel .list { overscroll-behavior: contain; padding-bottom: calc(32px + env(safe-area-inset-bottom)); }
@@ -405,7 +410,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 }
 @media (min-width: 641px) and (max-width: 839px) {
   .sheet, .panel { width: min(640px, 100% - 112px); max-height: calc(100dvh - 56px); }
-  .sheet.full, .panel.full { height: calc(100dvh - 56px); }
+  :is(.sheet, .panel)[data-snap="3"] { height: calc(100dvh - 56px); }
 }
 
 @media (max-width: 860px) {
@@ -1135,41 +1140,74 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     scrollTo({ top: owner.getBoundingClientRect().top + scrollY - $('.bar').getBoundingClientRect().bottom - 12, behavior: 'smooth' });
   }
 
+  // Bottom-sheet snap points as fractions of the viewport; 1 is as tall as the top margin allows.
+  const SNAPS = [0.3, 0.5, 0.75, 1];
+  const START_SNAP = 1;
+  const FLICK = 0.5;
+  const snapOf = (sheet) => Number(sheet.dataset.snap ?? START_SNAP);
+  const snapHeights = () => SNAPS.map((f) => (f === 1 ? innerHeight - (innerWidth > 640 ? 56 : 72) : innerHeight * f));
+
+  function setSnap(sheet, i) {
+    if (i === START_SNAP) {
+      delete sheet.dataset.snap;
+    } else {
+      sheet.dataset.snap = String(i);
+    }
+  }
+
+  // -1 means dismiss.
+  function snapTarget(sheet, height, velocity, tapped) {
+    const heights = snapHeights();
+    if (tapped) {
+      return snapOf(sheet) + 1 < heights.length ? snapOf(sheet) + 1 : START_SNAP;
+    }
+    if (velocity < -FLICK) {
+      const above = heights.findIndex((h) => h > height + 8);
+      return above < 0 ? heights.length - 1 : above;
+    }
+    if (velocity > FLICK) {
+      return heights.findLastIndex((h) => h < height - 8);
+    }
+    if (height < heights[0] - 60) {
+      return -1;
+    }
+    return heights.reduce((best, h, i) => (Math.abs(h - height) < Math.abs(heights[best] - height) ? i : best), 0);
+  }
+
   function dragSheet(e) {
     if (!compact.matches || e.target.closest('button')) {
       return;
     }
     const sheet = e.currentTarget.closest('.sheet, .panel');
     const startY = e.clientY;
+    const startH = sheet.getBoundingClientRect().height;
+    const max = snapHeights().at(-1);
     let dy = 0;
+    let last = { y: e.clientY, t: e.timeStamp };
+    let velocity = 0;
     e.target.setPointerCapture(e.pointerId);
     const move = (ev) => {
       dy = ev.clientY - startY;
-      sheet.style.transform = `translateY(${Math.max(0, dy)}px)`;
+      velocity = (ev.clientY - last.y) / Math.max(1, ev.timeStamp - last.t);
+      last = { y: ev.clientY, t: ev.timeStamp };
+      sheet.style.height = `${Math.min(max, Math.max(0, startH - dy))}px`;
     };
     const end = () => {
       e.target.removeEventListener('pointermove', move);
-      animate('side', () => {
-        sheet.style.transform = '';
-        settleSheet(sheet, dy);
+      const target = snapTarget(sheet, startH - dy, velocity, Math.abs(dy) < 6);
+      if (target < 0) {
+        dismiss(sheet);
+        animate('side-close', () => { sheet.style.height = ''; });
+        return;
+      }
+      animate('snap', () => {
+        sheet.style.height = '';
+        setSnap(sheet, target);
       });
     };
     e.target.addEventListener('pointermove', move);
     e.target.addEventListener('pointerup', end, { once: true });
     e.target.addEventListener('pointercancel', end, { once: true });
-  }
-
-  function settleSheet(sheet, dy) {
-    const full = sheet.classList.contains('full');
-    if (Math.abs(dy) < 6) {
-      sheet.classList.toggle('full');
-    } else if (dy < -40) {
-      sheet.classList.add('full');
-    } else if (dy > 80 && full) {
-      sheet.classList.remove('full');
-    } else if (dy > 80) {
-      dismiss(sheet);
-    }
   }
 
   function dismiss(sheet) {
@@ -1187,7 +1225,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       const sheet = $('.sheet');
       parkMore();
       sheet.hidden = true;
-      sheet.classList.remove('full');
+      setSnap(sheet, START_SNAP);
       document.body.classList.remove('sheet-open');
       sheetOwner?.classList.remove('sheet-owner');
       sheetOwner = null;
@@ -1323,7 +1361,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       }
       $('.panel').classList.toggle('open', open);
       if (!open) {
-        $('.panel').classList.remove('full');
+        setSnap($('.panel'), START_SNAP);
       }
       $('#list').classList.toggle('on', open);
       $('#list').classList.remove('pulse');
