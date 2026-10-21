@@ -128,11 +128,13 @@ async function checkQuestions(browser, url, dir) {
   const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   const before = await bg();
   await page.locator('#theme').click();
+  await page.waitForTimeout(700);
   const flipped = await bg();
   await page.reload();
   await page.waitForTimeout(800);
   check(before !== flipped && (await bg()) === flipped, 'theme: the switch flips the theme and survives a reload');
   await page.locator('#theme').click();
+  await page.waitForTimeout(700);
   const head = () => page.locator('.qcard .qhead span').textContent();
   check((await head()) === 'Question 1 of 2', 'questions: the first one shows on top');
   await page.locator('#approve').click();

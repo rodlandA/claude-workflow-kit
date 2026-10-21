@@ -11,12 +11,12 @@
 @font-face { font-family: "Geist Mono"; src: url("/_fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
 :root {
   color-scheme: light dark;
-  --bg: light-dark(#eee9df, #1b2632);
-  --card: light-dark(#f7f3ec, #2c3b4d);
-  --oat: light-dark(#e2dacb, #243243);
+  --bg: light-dark(#eee9df, #2c3b4d);
+  --card: light-dark(#f7f3ec, #1b2632);
+  --oat: light-dark(#e2dacb, #23303f);
   --fg: light-dark(#1b2632, #eee9df);
   --muted: light-dark(#5d6570, #b5ae9f);
-  --line: light-dark(#d3cbbb, #3b4c61);
+  --line: light-dark(#d3cbbb, #435670);
   --accent: light-dark(#a35139, #ffb162);
   --accent-soft: light-dark(#f0dccf, #3d3a3a);
   --on-accent: light-dark(#eee9df, #1b2632);
@@ -30,9 +30,14 @@
   --note: light-dark(#2c3b4d, #ffb162);
   --note-soft: light-dark(#dcdfe2, #4a3a2a);
   --on-note: light-dark(#eee9df, #1b2632);
-  --band-fg: #eee9df;
-  --band: radial-gradient(90% 120% at 100% 110%, rgba(255, 177, 98, .38), transparent 60%), radial-gradient(70% 90% at 0% 120%, rgba(163, 81, 57, .45), transparent 65%), linear-gradient(160deg, #1b2632, #2c3b4d);
+  --band-fg: light-dark(#1b2632, #eee9df);
+  --band: radial-gradient(90% 120% at 100% 110%, light-dark(rgb(255 177 98 / .6), rgb(255 177 98 / .38)), transparent 60%), radial-gradient(70% 90% at 0% 120%, light-dark(rgb(163 81 57 / .3), rgb(163 81 57 / .45)), transparent 65%), linear-gradient(160deg, light-dark(#eee9df, #1b2632), light-dark(#c9c1b1, #121a23));
+  --band-head: light-dark(#a35139, #ffb162);
   --qcard: light-dark(#f7f3ec, #1b2632);
+  --page: radial-gradient(80% 70% at 100% 108%, light-dark(rgb(255 177 98 / .5), rgb(255 177 98 / .32)), transparent 70%),
+    radial-gradient(45% 55% at 0% 115%, light-dark(rgb(163 81 57 / .3), rgb(163 81 57 / .55)), transparent 70%),
+    radial-gradient(70% 50% at 0% 0%, light-dark(rgb(201 193 177 / .5), rgb(27 38 50 / 0)), transparent 70%),
+    linear-gradient(160deg, light-dark(#eee9df, #2c3b4d), light-dark(#eee9df, #1b2632));
   --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
@@ -41,7 +46,7 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html { scroll-behavior: smooth; scroll-padding-top: 64px; }
-body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+body { margin: 0; min-height: 100vh; background-color: var(--bg); background-image: var(--page); background-attachment: fixed; color: var(--fg); font: 15px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
 textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 code { font-family: var(--mono); font-size: .86em; background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
 
@@ -124,9 +129,9 @@ table.files td, table.files th { overflow-wrap: anywhere; text-align: left; padd
 table.files th { background: var(--oat); font: 500 11.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border-top: 0; }
 
 main aside.more, main .q { display: none; }
-.qzone { background: var(--band); color: var(--band-fg); border-radius: 20px; padding: 18px 18px 18px; margin: 0 0 48px; }
+.qzone { background: var(--band); color: var(--band-fg); border: 1px solid light-dark(#c9c1b1, transparent); border-radius: 20px; padding: 18px 18px 18px; margin: 0 0 48px; }
 .qzone > .qz-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin: 0 2px 12px; }
-.qzone > .qz-head b { color: var(--flame); }
+.qzone > .qz-head b { color: var(--band-head); }
 .qzone > .qz-head span { opacity: .8; }
 .qcard, details.qa { color: var(--fg); }
 .qzone > .qz-head b { white-space: nowrap; font: 500 12px var(--mono); letter-spacing: .1em; text-transform: uppercase; }
@@ -180,6 +185,9 @@ svg .edge { stroke: var(--muted); stroke-width: 1.5; fill: none; }
 .theme[aria-checked="true"] .sun { transform: rotate(90deg) scale(.4); }
 .theme[aria-checked="true"] .moon { opacity: 1; transform: none; }
 .theme[aria-checked="true"] .knob { transform: translateX(24px); background: #eee9df; color: #2c3b4d; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .5s; animation-timing-function: ease-in-out; }
+.theme .knob { view-transition-name: theme-knob; }
+::view-transition-group(theme-knob) { animation-duration: .5s; animation-timing-function: cubic-bezier(.05, .7, .1, 1); }
 .theme.ready .knob { transition: transform .4s cubic-bezier(.05, .7, .1, 1), background-color .4s; }
 .theme.ready svg { transition: transform .4s cubic-bezier(.05, .7, .1, 1), opacity .25s; }
 .bar .status { order: -2; }
@@ -264,7 +272,7 @@ body.sheet-open, body:has(.panel.open:not(.leaving)) { transition: padding-right
 .sheet .ask p { margin: 0 0 8px; color: var(--muted); font-size: 13.5px; }
 .sheet .ask textarea { width: 100%; min-height: 64px; font: inherit; font-size: 14px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--bg); color: var(--fg); resize: vertical; }
 .sheet .ask .row { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--muted); }
-.sheet .ask button { font: inherit; font-size: 13px; border-radius: 8px; padding: 6px 14px; cursor: pointer; background: var(--fg); color: var(--bg); border: 1px solid var(--fg); }
+.sheet .ask button { font: inherit; font-size: 13px; border-radius: 8px; padding: 6px 14px; cursor: pointer; background: var(--flame); color: var(--on-flame); border: 1px solid var(--flame); font-weight: 600; }
 .sheet .ask button:disabled { opacity: .45; cursor: default; }
 @media (min-width: 840px) { body.sheet-open, body:has(.panel.open:not(.leaving)) { padding-right: var(--sheet-w); } }
 @media (min-width: 840px) and (max-width: 1099px) {
@@ -549,9 +557,18 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   function toggleTheme() {
     const next = isDark() ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
-    try { localStorage.setItem(THEME_KEY, next); } catch {}
-    showThemeButton();
+    const apply = () => {
+      document.documentElement.dataset.theme = next;
+      try { localStorage.setItem(THEME_KEY, next); } catch {}
+      showThemeButton();
+    };
+    if (!document.startViewTransition || reducedMotion.matches) {
+      apply();
+      return;
+    }
+    // The view transition slides the knob; its own CSS transition would move it a second time.
+    $('#theme').classList.remove('ready');
+    document.startViewTransition(apply).finished.finally(() => $('#theme').classList.add('ready'));
   }
 
   // An aside.more expands the element right before it, or the [data-c] it names in data-for.
