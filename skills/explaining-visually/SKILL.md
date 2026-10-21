@@ -96,7 +96,7 @@ Everything is commentable automatically. `example.body.html` shows a full plan.
 
 Depth lives in the side sheet's Info tab, never in the page.
 
-1. Insert `<aside class="more">…</aside>` as the element's next sibling, even inside a `.flow` or `<ol>`. For an SVG `<g>`, put it after the `<figure>` with `data-for="<its data-c>"`.
+1. Insert `<aside class="more">…</aside>` as the element's next sibling, even inside a `.flow` or `<ol>`. For an SVG `<g>` or a table row, give it `data-c="Name"` and put the aside after the `<figure>` or `<table>` with `data-for="Name"`: the parser moves an aside between rows out of the table.
 2. A visual first (flow, box grid, small table), then ≤ 80 words. Answer the question if there is one. Outside the budget.
 3. Plan mode: reasoning, alternatives and their cost, a `<pre>` example of at most 10 lines — never the implementation.
 4. Reply `Added to Info for <element>`. A second `EXPAND` on the element extends its `aside`.
@@ -112,7 +112,7 @@ It approves the plan, nothing more: commits and pushes follow the user's own rul
 
 ## Changing the shell or server
 
-After editing `scripts/shell.html` or `scripts/serve.mjs`, run `node scripts/check.mjs` (once: `npm --prefix scripts install`). It must end with `all passed`.
+After editing `scripts/shell.html` or `scripts/serve.mjs`, run `node ~/.claude/skills/explaining-visually/scripts/check.mjs` (once: `npm --prefix ~/.claude/skills/explaining-visually/scripts install`). It must end with `all passed`.
 
 ## Common mistakes
 

@@ -229,8 +229,7 @@ html:not(.vt-theme)::view-transition-new(root) { animation: none; }
 @keyframes vt-fade-in { from { opacity: 0; } }
 @keyframes vt-fade-out { to { opacity: 0; } }
 
-/* Desktop sheet: the bar grows into the sheet's top, the sheet unrolls down from it, then the data slides in */
-/* The bar's surface morphs on its own and each control glides to its new place, so the bar survives any reflow */
+/* Desktop sheet: each bar control has its own name, so the bar survives any reflow */
 ::view-transition-old(bar), ::view-transition-new(bar) { width: 100%; height: 100%; animation-duration: .2s; }
 html.vt-side-close::view-transition-old(bar), html.vt-side-close::view-transition-new(bar) { animation-delay: .25s; animation-fill-mode: both; }
 html.vt-side-close::view-transition-group(*.bar-item) { animation-delay: .18s; animation-fill-mode: both; }
@@ -250,14 +249,14 @@ html.vt-side-close::view-transition-group(bar) { animation-delay: .18s; animatio
 @keyframes vt-data-in { from { opacity: 0; transform: translateX(28px); } }
 @keyframes vt-data-out { to { opacity: 0; transform: translateX(16px); } }
 
-/* Compact: a bottom sheet rising over a fading scrim */
+/* Compact bottom sheet */
 @media (max-width: 839px) {
   ::view-transition-new(side):only-child { animation: vt-rise var(--vt-in); }
   ::view-transition-old(side):only-child { animation: vt-sink var(--vt-out); }
   ::view-transition-old(side) { animation: vt-fade-out .1s ease-in forwards; }
   ::view-transition-new(side) { animation: vt-fade-in .25s .1s both; }
 }
-/* Snapping: the box glides to the snap height; the new image sits over the dragged one, so no gap opens below it */
+/* Snapping keeps the dragged image under the new one, or a gap opens below the sheet */
 html.vt-snap::view-transition-group(side) { overflow: clip; border-radius: 28px 28px 0 0; }
 html.vt-snap::view-transition-old(side), html.vt-snap::view-transition-new(side) { animation: none; }
 ::view-transition-new(scrim):only-child { animation: vt-fade-in .3s ease-out; }
@@ -415,7 +414,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   .sheet .sheet-body, .panel .list { overscroll-behavior: contain; padding-bottom: calc(32px + env(safe-area-inset-bottom)); }
   body.sheet-open .scrim, body:has(.panel.open) .scrim { display: block; position: fixed; inset: 0; z-index: 59; background: rgba(0,0,0,.32); }
 }
-/* At the top snap point a phone-width sheet docks under the bar and the two read as one surface (M3: a full-height modal sheet shows a close affordance) */
+/* Phone width, top snap point: the sheet docks under the bar */
 @media (max-width: 640px) {
   :is(.sheet, .panel)[data-snap="3"] { height: calc(100dvh - var(--bar-h)); max-height: none; border-radius: 0; border-width: 0; box-shadow: none; }
   :is(.sheet, .panel)[data-snap="3"] .handle { height: 12px; }
@@ -445,6 +444,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 @media (prefers-reduced-motion: reduce) {
   .bar { animation: none !important; }
   .theme .knob, .theme svg { transition: none !important; }
+  html { scroll-behavior: auto; }
 }
 @media print { .bar, .panel, .sheet, .cbtn, .h-cbtn, nav.toc { display: none; } .layout { display: block; } }
 </style>
@@ -509,14 +509,15 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   const RENDERED = '{{VERSION}}';
   const TARGETS = 'main h2, main h3, .tldr li, .box, .step, .callout, .col, table.files tr, figure, main p, main li, [data-c]';
   const ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>';
-  const REF = /[\w@./-]*\w\.(?:tsx?|jsx?|mjs|cjs|cs|csproj|py|go|rs|java|kt|swift|rb|php|md|json|ya?ml|sh|css|scss|html|sql|toml|xml)(?::\d+(?:-\d+)?)?(?![\w.])/g;
+  const REF = /(?:[\w@./-]*\w\.(?:tsx?|jsx?|mjs|cjs|cs|csproj|py|go|rs|java|kts?|swift|rb|php|md|json|ya?ml|sh|css|scss|html|sql|toml|xml|c|h|cc|cpp|hpp|m|vue|svelte|txt|tf|proto|graphql|ini|cfg|conf|gradle|lua|dart|ex|exs|scala|zig)|[\w@./-]*(?:Makefile|Dockerfile|Gemfile|Rakefile|Justfile))(?::\d+(?:-\d+)?)?(?![\w.])/g;
   const $ = (s) => document.querySelector(s);
   const served = location.protocol.startsWith('http');
   const cbtn = $('.cbtn');
 
   let drafts = [];
   let sent = [];
-  let version = null;
+  let version = RENDERED;
+  let firstPoll = true;
   let pendingReload = false;
   let seenReplies = null;
   const SEEN_KEY = `${KEY}:seen`;
@@ -613,7 +614,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       toc.appendChild(tocLink('#questions', 'Questions', '?', 'qlink')).insertAdjacentHTML('beforeend', '<span class="count"></span>');
     }
     let n = 0;
-    document.querySelectorAll('main section > h2, main section h3').forEach((h, i) => {
+    [...document.querySelectorAll('main section > h2, main section h3')].filter((h) => !h.closest('aside.more')).forEach((h, i) => {
       const section = h.closest('section');
       const isH2 = h.tagName === 'H2';
       const anchor = isH2 && section.id ? section : h;
@@ -688,7 +689,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     const sections = sectionsOf();
     const next = sections[sections.indexOf(currentSection()) + step];
     if (next) {
-      next.scrollIntoView({ behavior: reducedMotion.matches ? 'auto' : 'smooth', block: 'start' });
+      next.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
       pinTo(next);
     }
   }
@@ -703,9 +704,11 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   const KEYS = { j: () => jumpSection(1), k: () => jumpSection(-1), c: commentByKey };
 
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const scrollBehavior = () => (reducedMotion.matches ? 'auto' : 'smooth');
   let motion = false;
   let queued = null;
   let kinds = new Set();
+  const live = new Map();
   let updating = false;
   let running = Promise.resolve();
 
@@ -735,14 +738,17 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     transition.ready.catch(() => {});
     const mine = kinds;
     kinds = new Set();
-    running = transition.finished.catch(() => {}).then(() => {
-      mine.forEach((k) => {
-        if (!kinds.has(k)) {
-          document.documentElement.classList.remove(`vt-${k}`);
-        }
-      });
-    });
+    mine.forEach((k) => live.set(k, (live.get(k) ?? 0) + 1));
+    running = transition.finished.catch(() => {}).then(() => mine.forEach(release));
     return running;
+  }
+
+  // A kind's class stays while any transition of that kind, or one still queued, needs its names.
+  function release(kind) {
+    live.set(kind, live.get(kind) - 1);
+    if (!live.get(kind) && !kinds.has(kind)) {
+      document.documentElement.classList.remove(`vt-${kind}`);
+    }
   }
 
   const THEME_KEY = 'explainer:theme';
@@ -869,7 +875,8 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     item.querySelector('.t').textContent = titles[c.kind] ?? targetName(c);
     item.querySelector('q').textContent = c.quote || '';
     item.querySelector('q').hidden = !c.quote || c.kind === 'answer';
-    item.querySelector('.b').textContent = c.kind === 'answer' ? answerText(c) : c.text || (c.kind === 'expand' ? 'Expand this' : '');
+    const bodies = { answer: answerText(c), expand: c.text || 'Expand this' };
+    item.querySelector('.b').textContent = bodies[c.kind] ?? c.text ?? '';
     item.querySelector('.reply').textContent = c.reply ? c.reply.text : '';
     item.querySelector('.reply').hidden = !c.reply;
     return item;
@@ -962,8 +969,13 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     };
     send.onclick = submit;
     ta.onkeydown = (e) => {
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { submit(); }
-      if (e.key === 'Escape') { e.stopPropagation(); ta.blur(); }
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        submit();
+      }
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        ta.blur();
+      }
     };
     card.querySelector('[data-a=skip]').onclick = () => {
       if (questions.every((x) => x === q || answerOf(x) || skipped.has(x.id))) {
@@ -1082,9 +1094,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     if (pops.length) {
       animate('pop', () => pops.forEach((p) => p.remove()));
     }
-    if (pendingReload) {
-      reloadKeepingScroll();
-    }
+    reloadIfPending();
   }
 
   function refsIn(el) {
@@ -1102,7 +1112,8 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   function codeBlock(m) {
     const block = document.createElement('div');
     block.innerHTML = '<div class="head"><span></span><a>Open in VS Code</a></div><pre></pre>';
-    block.querySelector('span').textContent = m.from ? `${m.path}:${m.from}${m.to > m.from ? `-${m.to}` : ''}` : m.path;
+    const range = m.to > m.from ? `${m.from}-${m.to}` : m.from;
+    block.querySelector('span').textContent = m.from ? `${m.path}:${range}` : m.path;
     block.querySelector('a').href = `vscode://file${m.abs}:${m.from || 1}`;
     const pre = block.querySelector('pre');
     m.lines.forEach((text, i) => {
@@ -1219,7 +1230,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       owner.scrollIntoView({ block: 'nearest' });
       return;
     }
-    scrollTo({ top: owner.getBoundingClientRect().top + scrollY - $('.bar').getBoundingClientRect().bottom - 12, behavior: 'smooth' });
+    scrollTo({ top: owner.getBoundingClientRect().top + scrollY - $('.bar').getBoundingClientRect().bottom - 12, behavior: scrollBehavior() });
   }
 
   // Bottom-sheet snap points as fractions of the viewport; 1 is as tall as the top margin allows.
@@ -1314,9 +1325,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       sheetOwner = null;
       try { sessionStorage.removeItem(SHEET_KEY); } catch {}
     });
-    if (pendingReload) {
-      reloadKeepingScroll();
-    }
+    reloadIfPending();
   }
 
   function restoreSheet() {
@@ -1360,13 +1369,23 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     const ta = pop.querySelector('textarea');
     ta.placeholder = general ? 'The bigger picture: direction, scope, what is missing, what to cut…' : 'What should change, or what is unclear?';
     ta.value = text || '';
-    const done = async (fn) => { if (ta.value.trim()) { await fn(ta.value.trim()); } closePop(); };
+    const done = async (fn) => {
+      if (ta.value.trim()) {
+        await fn(ta.value.trim());
+      }
+      closePop();
+    };
     pop.querySelector('[data-a=send]').onclick = () => done(onSend);
     pop.querySelector('[data-a=batch]').onclick = () => done(onBatch);
     pop.querySelector('[data-a=cancel]').onclick = closePop;
     ta.onkeydown = (e) => {
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { done(onSend); }
-      if (e.key === 'Escape') { e.stopPropagation(); closePop(); }
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        done(onSend);
+      }
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        closePop();
+      }
     };
     if (tools) {
       addTools(pop, anchor);
@@ -1475,18 +1494,31 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   async function post(list) {
     try {
-      if (!served) { throw new Error('file'); }
+      if (!served) {
+        throw new Error('file');
+      }
       const res = await fetch('comments', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ doc: DOC, comments: list }) });
-      if (!res.ok) { throw new Error(res.status); }
+      if (!res.ok) {
+        throw new Error(res.status);
+      }
       sent = sent.concat(list.map((c) => ({ ...c, reply: null })));
       render();
     } catch {
-      const md = list.map((c) => `- [${targetName(c)}]${c.quote ? ` "${c.quote}"` : ''} ${c.text}`).join('\n');
+      keepUnsent(list);
+    }
+  }
+
+  // The comments are kept before the clipboard is tried: a refused clipboard must not lose them.
+  async function keepUnsent(list) {
+    drafts = drafts.concat(list.filter((c) => !drafts.includes(c)));
+    persist();
+    render();
+    const md = list.map((c) => `- [${targetName(c)}]${c.quote ? ` "${c.quote}"` : ''} ${c.text ?? ''}`).join('\n');
+    try {
       await navigator.clipboard.writeText(`Comments on ${DOC}:\n${md}`);
-      drafts = drafts.concat(list.filter((c) => !drafts.includes(c)));
-      persist();
-      render();
       alert('No agent server is listening. The comments were copied to the clipboard and kept as unsent.');
+    } catch {
+      alert('No agent server is listening. The comments were kept as unsent; copy them from the Comments panel.');
     }
   }
 
@@ -1577,7 +1609,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   function nextDelta() {
     const el = deltas[deltaIndex % deltas.length];
     deltaIndex += 1;
-    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
   }
 
   // Changes are outlined against a baseline that only moves when the reader clears them.
@@ -1603,6 +1635,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   const STATUS = {
     listening: { label: 'Agent listening', hint: 'Comments reach the agent as you send them.' },
+    copy: { label: 'Offline copy', hint: 'A saved copy: comments stay in this browser and can be copied, not sent.' },
     idle: {
       label: 'Agent not listening',
       hint: 'Comments are saved. Click to see how to resume.',
@@ -1649,23 +1682,29 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     showPop(pop, $('#status'));
   }
 
+  const hasTypedText = () => [...document.querySelectorAll('textarea')].some((t) => t.value.trim());
+
+  // Text the reader is typing outranks a newer version of the page.
+  function reloadIfPending() {
+    if (pendingReload && !hasTypedText()) {
+      reloadKeepingScroll();
+    }
+  }
+
   async function poll() {
     try {
       const state = await (await fetch(`state?since=${encodeURIComponent(since)}`, { cache: 'no-store' })).json();
       showStatus(state.listening ? 'listening' : 'idle');
-      if (version !== null && state.v !== version) {
-        if ([...document.querySelectorAll('textarea')].some((t) => t.value.trim())) {
-          pendingReload = true;
-          $('#reload').hidden = false;
-          return;
-        }
-        reloadKeepingScroll();
+      if (state.v !== version) {
+        pendingReload = true;
+        $('#reload').hidden = false;
+        reloadIfPending();
         return;
       }
-      if (version === null) {
+      if (firstPoll) {
+        firstPoll = false;
         markDeltas(state.changed);
       }
-      version = state.v;
       const replies = state.sent.filter((c) => c.reply).length;
       if (seenReplies !== null && replies > seenReplies && !$('.panel').classList.contains('open')) {
         $('#list').classList.add('pulse');
@@ -1811,7 +1850,13 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   render();
   restoreScroll();
   restoreSheet();
-  if (served) { poll(); setInterval(poll, 2000); } else { requestAnimationFrame(() => { motion = true; }); }
+  if (served) {
+    poll();
+    setInterval(poll, 2000);
+  } else {
+    showStatus('copy');
+    requestAnimationFrame(() => { motion = true; });
+  }
 })();
 </script>
 </body>

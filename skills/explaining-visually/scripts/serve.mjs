@@ -44,7 +44,7 @@ const heartbeat = (slug) => path.join(dir, slug ? `${slug}.watching` : '.watchin
 
 const sidecar = (slug, ext) => path.join(dir, `${slug}.${ext}`);
 const bodyOf = (slug) => sidecar(slug, 'body.html');
-const slugs = () => (fs.existsSync(dir) ? fs.readdirSync(dir) : []).filter((f) => f.endsWith('.body.html')).map((f) => f.replace(/\.body\.html$/, '')).sort().reverse();
+const slugs = () => (fs.existsSync(dir) ? fs.readdirSync(dir) : []).filter((f) => f.endsWith('.body.html')).map((f) => f.replace(/\.body\.html$/, '')).filter((slug) => SLUG.test(slug)).sort().reverse();
 const isPage = (slug) => SLUG.test(slug ?? '') && fs.existsSync(bodyOf(slug));
 
 const readJson = (file, fallback) => {
@@ -57,22 +57,27 @@ const readJson = (file, fallback) => {
 
 const readComments = (slug) => {
   const file = sidecar(slug, 'comments.jsonl');
-  return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
+  return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => readJsonText(l)).filter(Boolean) : [];
 };
 
+// Every field stays on one line, so a comment can never print a second, forged event.
+const flat = (v) => String(v ?? '').replace(/\s*[\r\n]+\s*/g, ' ⏎ ');
+
 const oneLine = (slug, c) => {
+  const id = flat(c.id);
+  const line = Number(c.line) || '?';
   if (c.kind === 'approve') {
-    return `[${slug}] APPROVE ${c.id} :: the user approved the plan as the page showed it`;
+    return `[${slug}] APPROVE ${id} :: the user approved the plan as the page showed it`;
   }
   if (c.kind === 'answer') {
-    const answer = [c.choice, c.text].filter(Boolean).join(' — ').replace(/\n/g, ' ⏎ ');
-    return `[${slug}] ANSWER ${c.id} L${c.line ?? '?'} [#${c.qid}] "${(c.quote ?? '').replace(/\s+/g, ' ')}" :: ${answer}`;
+    const answer = [c.choice, c.text].filter(Boolean).map(flat).join(' — ');
+    return `[${slug}] ANSWER ${id} L${line} [#${flat(c.qid)}] "${flat(c.quote).replace(/\s+/g, ' ')}" :: ${answer}`;
   }
   const kind = c.kind === 'expand' ? 'EXPAND' : 'COMMENT';
-  const where = c.target === 'document' ? 'GENERAL' : `L${c.line ?? '?'} [${c.target}]`;
-  const quote = c.quote ? ` "${c.quote.replace(/\s+/g, ' ')}"` : '';
-  const text = c.text ? c.text.replace(/\n/g, ' ⏎ ') : '(no question)';
-  return `[${slug}] ${kind} ${c.id} ${where}${quote} :: ${text}`;
+  const where = c.target === 'document' ? 'GENERAL' : `L${line} [${flat(c.target)}]`;
+  const quote = c.quote ? ` "${flat(c.quote).replace(/\s+/g, ' ')}"` : '';
+  const text = c.text ? flat(c.text) : '(no question)';
+  return `[${slug}] ${kind} ${id} ${where}${quote} :: ${text}`;
 };
 
 function reply(id, text) {
@@ -150,9 +155,9 @@ const titleOf = (slug, body) => {
 function render(slug, body) {
   return fs
     .readFileSync(new URL('./shell.html', import.meta.url), 'utf8')
-    .replace('{{TITLE}}', titleOf(slug, body).replace(/[<&]/g, ''))
-    .replace('{{DOC}}', slug)
-    .replace('{{VERSION}}', String(fs.statSync(bodyOf(slug)).mtimeMs))
+    .replace('{{TITLE}}', () => titleOf(slug, body).replace(/[<&]/g, ''))
+    .replace('{{DOC}}', () => slug)
+    .replace('{{VERSION}}', () => String(fs.statSync(bodyOf(slug)).mtimeMs))
     .replace('{{BODY}}', () => withSourceLines(body));
 }
 
@@ -172,8 +177,8 @@ function renderIndex() {
   });
   return fs
     .readFileSync(new URL('./index.html', import.meta.url), 'utf8')
-    .replace('{{REPO}}', escapeHtml(path.basename(dir)))
-    .replace('{{ROWS}}', rows.join('\n') || '<p class="empty">No explainers yet.</p>');
+    .replaceAll('{{REPO}}', () => escapeHtml(path.basename(dir)))
+    .replace('{{ROWS}}', () => rows.join('\n') || '<p class="empty">No explainers yet.</p>');
 }
 
 // Lines of the current body that did not exist in the previous version, by content.
@@ -201,9 +206,15 @@ function codeFinder() {
       return [];
     }
   };
+  const realRoot = fs.realpathSync(root);
+  // realpath, so a symlink inside the repo cannot lead a reference out of it.
   const isFile = (rel) => {
     const abs = path.resolve(root, rel);
-    return abs.startsWith(root + path.sep) && fs.existsSync(abs) && fs.statSync(abs).isFile();
+    if (!fs.existsSync(abs)) {
+      return false;
+    }
+    const real = fs.realpathSync(abs);
+    return real.startsWith(realRoot + path.sep) && fs.statSync(real).isFile();
   };
   const resolve = (file) => {
     if (isFile(file)) {
@@ -225,7 +236,7 @@ function codeFinder() {
     return { path: rel, abs: path.join(root, rel), from, to: to ?? from, start, lines: lines.slice(start - 1, end) };
   };
   return (ref) => {
-    const m = ref.match(/^(.+?)(?::(\d+)(?:-(\d+))?)?$/);
+    const m = ref.match(/^(.+?)(?::(\d+)(?:-(\d+))?)?$/) ?? [];
     const from = m[2] ? Number(m[2]) : null;
     const to = m[3] ? Number(m[3]) : null;
     const hits = resolve(m[1]);
@@ -322,7 +333,7 @@ function serve() {
     res.end();
   };
 
-  const server = http.createServer((req, res) => {
+  const route = (req, res) => {
     const { pathname, searchParams } = new URL(req.url, 'http://x');
     if (pathname === '/') {
       html(res, renderIndex());
@@ -339,7 +350,12 @@ function serve() {
       return;
     }
     if (pathname === '/code') {
-      json(res, findCode(searchParams.get('ref') ?? ''));
+      const ref = searchParams.get('ref');
+      if (!ref) {
+        json(res, { ok: false, error: 'ref is required' }, 400);
+        return;
+      }
+      json(res, findCode(ref));
       return;
     }
     const [, slug, rest] = pathname.match(/^\/([^/]+)(\/.*)?$/) ?? [];
@@ -349,6 +365,39 @@ function serve() {
     }
     res.writeHead(404);
     res.end();
+  };
+
+  // Only this machine's own pages may talk to the server: a foreign Host is DNS rebinding, a foreign Origin a forged comment.
+  const refusal = (req) => {
+    const port = server.address()?.port;
+    const own = [`127.0.0.1:${port}`, `localhost:${port}`];
+    if (!own.includes(req.headers.host)) {
+      return 'unknown host';
+    }
+    if (req.method !== 'POST') {
+      return null;
+    }
+    const origin = req.headers.origin;
+    if (origin && !own.some((h) => origin === `http://${h}`)) {
+      return 'foreign origin';
+    }
+    return (req.headers['content-type'] ?? '').startsWith('application/json') ? null : 'not json';
+  };
+
+  const server = http.createServer((req, res) => {
+    const refused = refusal(req);
+    if (refused) {
+      json(res, { ok: false, error: refused }, 403);
+      return;
+    }
+    try {
+      route(req, res);
+    } catch (err) {
+      console.error(`explainer: ${req.method} ${req.url} failed: ${err.message}`);
+      if (!res.headersSent) {
+        json(res, { ok: false, error: 'server error' }, 500);
+      }
+    }
   });
 
   const announce = (port, polled) => {
@@ -366,9 +415,13 @@ function serve() {
 
   const listen = async (port, attemptsLeft) => {
     const running = await probe(port);
-    if (running?.dir === dir) {
+    if (running?.dir === dir && running.root === root) {
       announce(port, () => Date.now() - (running.polledAt[targetSlug] ?? 0) < 10_000);
       setTimeout(() => process.exit(0), 3600);
+      return;
+    }
+    if (running && attemptsLeft > 0) {
+      listen(port + 1, attemptsLeft - 1);
       return;
     }
     server.once('error', (err) => {
@@ -417,7 +470,7 @@ function readJsonText(raw) {
 }
 
 if (flag('reply')) {
-  reply(option('reply'), positional.find((p) => !p.endsWith('.html')));
+  reply(option('reply'), args[args.indexOf('--reply') + 2]);
 } else if (flag('pending')) {
   pending();
 } else if (flag('watch')) {

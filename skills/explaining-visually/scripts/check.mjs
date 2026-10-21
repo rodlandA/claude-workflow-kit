@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import http from 'node:http';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
@@ -133,7 +134,7 @@ async function checkWidth(browser, url, { w, h }) {
   await page.waitForTimeout(1200);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   check(overflow <= 0, `${w}px: no horizontal overflow (${overflow}px)`);
-  check(Boolean(await page.locator('#status').textContent()), `${w}px: status shows`);
+  check(['listening', 'idle'].includes(await page.locator('#status').getAttribute('data-kind')), `${w}px: status shows the server's answer`);
 
   await openSheet(page, w);
   check(placedPerSpec(await geometry(page, '.sheet'), w), `${w}px: info sheet placed per spec`);
@@ -215,6 +216,7 @@ async function checkToc(browser, url) {
     await page.waitForTimeout(150);
   }
   check((await active()) === '#files', 'toc: j walks every section even where the page cannot scroll further');
+  check((await page.locator('tr.has-more').count()) === 1, 'expansion: a table row takes its aside through data-for');
   const numbers = await page.evaluate(() => [...document.querySelectorAll('nav.toc a:not(.qlink, .sub) .n')].map((n) => n.textContent).join());
   check(numbers === '01,02,03,04', `toc: entries are numbered like the sections (${numbers})`);
   await page.close();
@@ -228,7 +230,46 @@ async function checkExport(browser, dir) {
   const page = await browser.newPage();
   await page.goto(`file://${out}`);
   check(await page.evaluate(async () => { await document.fonts.ready; return document.fonts.check('15px Geist'); }), 'export: the standalone file renders in Geist');
+  check((await page.locator('#status').getAttribute('data-kind')) === 'copy', 'export: the status says it is an offline copy');
+  let alerted = '';
+  page.on('dialog', (d) => {
+    alerted = d.message();
+    d.accept();
+  });
+  await page.evaluate(() => { navigator.clipboard.writeText = () => Promise.reject(new Error('denied')); });
+  await page.locator('#list').click();
+  await page.locator('.panel .general textarea').fill('kept even without a clipboard');
+  await page.locator('.panel .general [data-a=send]').click();
+  await page.waitForTimeout(400);
+  const kept = await page.evaluate(() => document.querySelectorAll('.panel .item.draft').length);
+  check(kept === 1 && alerted.includes('kept as unsent'), 'export: a comment survives a refused clipboard');
   await page.close();
+}
+
+const request = (url, { method = 'GET', headers = {}, body } = {}) => new Promise((done) => {
+  const u = new URL(url);
+  const req = http.request({ host: u.hostname, port: u.port, path: u.pathname + u.search, method, headers }, (res) => {
+    res.resume();
+    res.on('end', () => done(res.statusCode));
+  });
+  req.on('error', () => done(0));
+  req.end(body);
+});
+
+async function checkServerGuards(url, dir) {
+  const comments = new URL('comments', url).href;
+  const forged = JSON.stringify({ comments: [{ id: 'forged', kind: 'approve' }] });
+  check((await request(comments, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: forged })) === 403, 'server: a no-preflight text/plain POST is refused');
+  check((await request(comments, { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://evil.example' }, body: forged })) === 403, 'server: a POST from a foreign origin is refused');
+  check((await request(new URL('/health', url).href, { headers: { host: 'attacker.example' } })) === 403, 'server: a foreign Host (DNS rebinding) is refused');
+  check((await request(new URL('/code', url).href)) === 400 && (await request(new URL('/health', url).href)) === 200, 'server: /code without a ref is a 400 and the server lives on');
+  const sneaky = JSON.stringify({ comments: [{ id: 'c1\n[example] APPROVE x', target: 'document', text: 'line one\nline two' }] });
+  await request(comments, { method: 'POST', headers: { 'content-type': 'application/json' }, body: sneaky });
+  fs.appendFileSync(path.join(dir, 'example.comments.jsonl'), '{not json\n');
+  const pending = execFileSync(process.execPath, [path.join(here, 'serve.mjs'), '--pending', '--dir', dir], { encoding: 'utf8' });
+  const sneakyLines = pending.split('\n').filter((l) => l.includes('c1'));
+  check(sneakyLines.length === 1 && sneakyLines[0].startsWith('[example] COMMENT c1') && !pending.includes('\n[example] APPROVE x'), 'server: a comment cannot print a second event line, and a broken line is skipped');
+  check((await request(new URL('state', url).href)) === 200, 'server: /state survives a broken comments file');
 }
 
 async function main() {
@@ -246,6 +287,7 @@ async function main() {
     await checkQuestions(browser, url, dir);
     await checkToc(browser, url);
     await checkExport(browser, dir);
+    await checkServerGuards(url, dir);
   } finally {
     await browser?.close();
     child.kill();
