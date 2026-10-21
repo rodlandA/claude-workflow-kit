@@ -174,7 +174,7 @@ has the PATH line). If F is skipped, remove the `git review` mention from `branc
 
 `skills/explaining-visually/` → `~/.claude/skills/`. It is global by nature: one local server
 per repo serves every explainer, and the pages live in `~/.claude/explainers/<repo>/`, never in
-the repo. Needs Node 18+. Nothing to adapt — the agent asks its one question in the
+the repo. Needs Node 20+. Nothing to adapt — the agent asks its one question in the
 conversation's language.
 
 Then `npm --prefix ~/.claude/skills/explaining-visually/scripts install`, which pulls

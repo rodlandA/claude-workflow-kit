@@ -156,8 +156,9 @@ async function main() {
   check(cssBalanced(), 'shell.html: CSS braces balance');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'explainer-check-'));
   const { child, url } = await startServer(dir);
-  const browser = await launch();
+  let browser;
   try {
+    browser = await launch();
     const index = await (await fetch(new URL('/', url))).text();
     check(index.includes('href="example/"'), 'index lists the page');
     for (const size of WIDTHS) {
@@ -165,7 +166,7 @@ async function main() {
     }
     await checkQuestions(browser, url, dir);
   } finally {
-    await browser.close();
+    await browser?.close();
     child.kill();
     fs.rmSync(dir, { recursive: true, force: true });
   }
