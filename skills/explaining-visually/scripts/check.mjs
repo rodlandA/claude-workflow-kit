@@ -138,8 +138,10 @@ async function checkQuestions(browser, url, dir) {
   const head = () => page.locator('.qcard .qhead span').textContent();
   check((await head()) === 'Question 1 of 2', 'questions: the first one shows on top');
   await page.locator('#approve').click();
+  await page.waitForTimeout(500);
   check(await page.locator('dialog.confirm li', { hasText: '2 unanswered questions' }).isVisible(), 'questions: unanswered ones block a silent approval');
   await page.locator('dialog.confirm [data-a=cancel]').click();
+  await page.waitForTimeout(500);
   await page.locator('.qcard .opt').first().click();
   await page.locator('.qcard textarea').fill('but not before 2.0');
   await page.locator('.qcard [data-a=send]').click();
@@ -150,6 +152,7 @@ async function checkQuestions(browser, url, dir) {
   check(/\[example\] ANSWER \S+ L4 \[#q-mobile\] "Should the mobile app move to cookies too\?" :: Move it too — but not before 2\.0/.test(pending), 'questions: the agent gets choice and free text in one ANSWER line');
   await page.locator('details.qa summary').click();
   await page.locator('details.qa .qa-item button').click();
+  await page.waitForTimeout(500);
   check((await head()) === 'Change your answer' && (await page.locator('.qcard .opt.on').count()) === 1, 'questions: Change reopens the answer as given');
   await page.close();
 }

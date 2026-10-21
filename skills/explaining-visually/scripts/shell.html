@@ -63,9 +63,9 @@ h1[data-mode]::before { content: attr(data-mode); display: table; margin-bottom:
 section { margin: 0 0 56px; }
 nav.toc .keys { margin-top: 18px; padding-left: 12px; font-size: 12px; color: var(--muted); }
 nav.toc kbd { font-family: var(--mono); font-size: 11px; padding: 0 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--card); }
+main { counter-reset: sec; }
 .layout { transition: grid-template-columns .25s cubic-bezier(.3, 0, .8, .15), gap .25s cubic-bezier(.3, 0, .8, .15); }
 nav.toc { transition: opacity .2s; }
-main { counter-reset: sec; }
 section > h2 { counter-increment: sec; font-size: 24px; font-weight: 600; letter-spacing: -.02em; margin: 0 0 16px; padding-top: 14px; border-top: 1px solid var(--line); }
 section > h2::before { content: counter(sec, decimal-leading-zero); display: block; margin-bottom: 4px; font: 500 12px var(--mono); letter-spacing: .08em; color: var(--accent); }
 h3 { font-size: 16px; margin: 22px 0 8px; }
@@ -185,17 +185,52 @@ svg .edge { stroke: var(--muted); stroke-width: 1.5; fill: none; }
 .theme[aria-checked="true"] .sun { transform: rotate(90deg) scale(.4); }
 .theme[aria-checked="true"] .moon { opacity: 1; transform: none; }
 .theme[aria-checked="true"] .knob { transform: translateX(24px); background: #eee9df; color: #2c3b4d; }
-::view-transition-old(root), ::view-transition-new(root) { animation-duration: .5s; animation-timing-function: ease-in-out; }
-.theme .knob { view-transition-name: theme-knob; }
-::view-transition-group(theme-knob) { animation-duration: .5s; animation-timing-function: cubic-bezier(.05, .7, .1, 1); }
+/* Every state change runs through animate(kind); html.vt-<kind> names only what that change moves */
+html.vt-side .bar { view-transition-name: bar; }
+html.vt-side .sheet, html.vt-side .panel { view-transition-name: side; }
+html.vt-theme .theme .knob { view-transition-name: theme-knob; }
+html.vt-question .qzone { view-transition-name: qzone; }
+html.vt-question .qcard { view-transition-name: qcard; }
+html.vt-question details.qa { view-transition-name: qlog; }
+html.vt-pop .pop { view-transition-name: pop; }
+html.vt-dialog dialog.confirm { view-transition-name: dialog; }
+/* Snapshots cannot reflow text, so outside a theme change the page itself stays live and its own transitions run */
+html:not(.vt-theme)::view-transition-old(root) { display: none; }
+html:not(.vt-theme)::view-transition-new(root) { animation: none; }
+::view-transition-old(bar) { display: none; }
+::view-transition-new(bar) { animation: none; width: 100%; height: 100%; object-fit: none; object-position: right top; }
+::view-transition-group(*) { animation-duration: .4s; animation-timing-function: cubic-bezier(.05, .7, .1, 1); }
+::view-transition-group(root) { animation-timing-function: ease-in-out; }
+::view-transition-group(qzone) { z-index: 1; overflow: clip; border-radius: 20px; }
+::view-transition-group(qcard), ::view-transition-group(qlog) { z-index: 2; overflow: clip; border-radius: 14px; }
+::view-transition-group(side) { z-index: 3; }
+::view-transition-group(bar) { z-index: 4; }
+::view-transition-group(theme-knob) { z-index: 5; }
+::view-transition-group(pop), ::view-transition-group(dialog) { z-index: 6; }
+::view-transition-old(qzone), ::view-transition-new(qzone), ::view-transition-old(qcard), ::view-transition-new(qcard), ::view-transition-old(qlog), ::view-transition-new(qlog) { width: 100%; height: 100%; object-fit: none; object-position: left top; }
+::view-transition-old(qcard) { animation: vt-fade-out .1s ease-in forwards; }
+::view-transition-new(qcard) { animation: vt-q-in .35s .1s cubic-bezier(.05, .7, .1, 1) both; }
+@keyframes vt-fade-out { to { opacity: 0; } }
+@keyframes vt-q-in { from { opacity: 0; transform: translateX(24px); } }
+::view-transition-new(side):only-child { animation: vt-side-in .4s cubic-bezier(.05, .7, .1, 1); }
+::view-transition-old(side):only-child { animation: vt-side-out .25s cubic-bezier(.3, 0, .8, .15) forwards; }
+::view-transition-new(pop):only-child, ::view-transition-new(dialog):only-child { animation: vt-pop-in .2s ease-out; }
+::view-transition-old(pop):only-child, ::view-transition-old(dialog):only-child { animation: vt-pop-out .15s ease-in forwards; }
+@keyframes vt-side-in { from { transform: translateX(100%); } }
+@keyframes vt-side-out { to { transform: translateX(100%); } }
+@keyframes vt-pop-in { from { opacity: 0; transform: translateY(-6px) scale(.97); } }
+@keyframes vt-pop-out { to { opacity: 0; transform: scale(.97); } }
+@media (max-width: 839px) {
+  @keyframes vt-side-in { from { transform: translateY(100%); } }
+  @keyframes vt-side-out { to { transform: translateY(100%); } }
+}
 .theme.ready .knob { transition: transform .4s cubic-bezier(.05, .7, .1, 1), background-color .4s; }
 .theme.ready svg { transition: transform .4s cubic-bezier(.05, .7, .1, 1), opacity .25s; }
 .bar .status { order: -2; }
 .bar .actions { display: flex; gap: 8px; }
 .bar .actions button { flex: 1 1 auto; white-space: nowrap; }
-body.sheet-open .bar, body:has(.panel.open:not(.leaving)) .bar, body.leaving .bar { top: 0; right: 0; width: var(--sheet-w); max-width: 100vw; border-right: 0; border-radius: 16px 0 0 0; box-shadow: none; animation: sheet-in var(--enter); }
-body.leaving .bar { animation: sheet-out var(--exit); }
-body.sheet-open .bar .actions, body:has(.panel.open:not(.leaving)) .bar .actions, body.leaving .bar .actions { width: 100%; }
+body.sheet-open .bar, body:has(.panel.open) .bar { top: 0; right: 0; width: var(--sheet-w); max-width: 100vw; border-right: 0; border-radius: 16px 0 0 0; box-shadow: none; }
+body.sheet-open .bar .actions, body:has(.panel.open) .bar .actions { width: 100%; }
 @keyframes bar-in { from { opacity: 0; } }
 .bar button, .pop button, .panel button, .qzone button { font: inherit; font-size: 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); padding: 6px 12px; cursor: pointer; }
 .bar button.send { background: var(--fg); color: var(--bg); border-color: var(--fg); }
@@ -247,13 +282,8 @@ svg .delta > :is(rect, circle, ellipse, path, polygon) { stroke: var(--new); str
 .pop .tools button.has { border-color: var(--accent); color: var(--accent); }
 
 /* Modal side sheet (Material 3), attached to the trailing edge; the bar is its top */
-:root { --sheet-w: clamp(360px, 40vw, 640px); --bar-h: 56px; --enter: .4s cubic-bezier(.05, .7, .1, 1); --exit: .25s cubic-bezier(.3, 0, .8, .15) forwards; }
-.sheet { position: fixed; top: 0; padding-top: var(--bar-h); right: 0; bottom: 0; width: var(--sheet-w); max-width: 100vw; z-index: 44; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-right: 0; border-radius: 16px 0 0 16px; overflow: hidden; box-shadow: 0 10px 36px rgba(0,0,0,.16); animation: sheet-in var(--enter); }
-.sheet.leaving, .panel.leaving { animation: sheet-out var(--exit); }
-@keyframes sheet-in { from { transform: translateX(100%); } }
-@keyframes sheet-out { to { transform: translateX(100%); } }
-body { transition: padding-right .25s cubic-bezier(.3, 0, .8, .15); }
-body.sheet-open, body:has(.panel.open:not(.leaving)) { transition: padding-right .4s cubic-bezier(.05, .7, .1, 1); }
+:root { --sheet-w: clamp(360px, 40vw, 640px); --bar-h: 56px; }
+.sheet { position: fixed; top: 0; padding-top: var(--bar-h); right: 0; bottom: 0; width: var(--sheet-w); max-width: 100vw; z-index: 44; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-right: 0; border-radius: 16px 0 0 16px; overflow: hidden; box-shadow: 0 10px 36px rgba(0,0,0,.16); }
 .sheet header { display: flex; align-items: flex-start; gap: 12px; padding: 18px 16px 6px 24px; }
 .sheet .title { flex: 1; font-size: 18px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
 .sheet .close { border: 0; background: none; color: var(--muted); font-size: 18px; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; }
@@ -274,15 +304,16 @@ body.sheet-open, body:has(.panel.open:not(.leaving)) { transition: padding-right
 .sheet .ask .row { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--muted); }
 .sheet .ask button { font: inherit; font-size: 13px; border-radius: 8px; padding: 6px 14px; cursor: pointer; background: var(--flame); color: var(--on-flame); border: 1px solid var(--flame); font-weight: 600; }
 .sheet .ask button:disabled { opacity: .45; cursor: default; }
-@media (min-width: 840px) { body.sheet-open, body:has(.panel.open:not(.leaving)) { padding-right: var(--sheet-w); } }
+body { transition: padding-right .25s cubic-bezier(.3, 0, .8, .15); }
+body.sheet-open, body:has(.panel.open) { transition: padding-right .4s cubic-bezier(.05, .7, .1, 1); }
+@media (min-width: 840px) { body.sheet-open, body:has(.panel.open) { padding-right: var(--sheet-w); } }
 @media (min-width: 840px) and (max-width: 1099px) {
-  body.sheet-open .layout, body:has(.panel.open:not(.leaving)) .layout { grid-template-columns: 0 minmax(0, 920px); gap: 0; transition-duration: .4s; transition-timing-function: cubic-bezier(.05, .7, .1, 1); }
-  body.sheet-open nav.toc, body:has(.panel.open:not(.leaving)) nav.toc { opacity: 0; visibility: hidden; }
+  body.sheet-open .layout, body:has(.panel.open) .layout { grid-template-columns: 0 minmax(0, 920px); gap: 0; transition-duration: .4s; transition-timing-function: cubic-bezier(.05, .7, .1, 1); }
+  body.sheet-open nav.toc, body:has(.panel.open) nav.toc { opacity: 0; visibility: hidden; }
 }
 .sheet .handle, .panel .handle { display: none; justify-content: center; align-items: center; height: 48px; flex: none; cursor: grab; touch-action: none; }
 .sheet .handle::before, .panel .handle::before { content: ''; width: 32px; height: 4px; border-radius: 2px; background: var(--muted); opacity: .5; }
 .scrim { display: none; }
-@keyframes sheet-up { from { transform: translateY(48px); opacity: 0; } }
 .codes { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .codes .head { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; margin-bottom: 4px; }
 .codes .head span { font-family: var(--mono); color: var(--muted); overflow-wrap: anywhere; }
@@ -308,7 +339,7 @@ dialog.confirm p { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
 dialog.confirm .row { display: flex; justify-content: flex-end; gap: 8px; }
 dialog.confirm button { font: inherit; font-size: 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); padding: 6px 12px; cursor: pointer; }
 dialog.confirm button.primary { background: var(--flame); color: var(--on-flame); border-color: var(--flame); font-weight: 600; }
-.panel { animation: sheet-in var(--enter); position: fixed; top: 0; padding-top: var(--bar-h); right: 0; bottom: 0; width: var(--sheet-w); max-width: 100vw; z-index: 44; background: var(--card); border: 1px solid var(--line); border-right: 0; border-radius: 16px 0 0 16px; overflow: hidden; box-shadow: 0 10px 36px rgba(0,0,0,.16); display: none; flex-direction: column; }
+.panel { position: fixed; top: 0; padding-top: var(--bar-h); right: 0; bottom: 0; width: var(--sheet-w); max-width: 100vw; z-index: 44; background: var(--card); border: 1px solid var(--line); border-right: 0; border-radius: 16px 0 0 16px; overflow: hidden; box-shadow: 0 10px 36px rgba(0,0,0,.16); display: none; flex-direction: column; }
 .panel.open { display: flex; }
 .panel .list { overflow: auto; padding: 8px; flex: 1; }
 .panel h5 { margin: 10px 6px 6px; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
@@ -324,10 +355,9 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 @media (max-width: 839px) {
   .bar button { padding: 5px 10px; }
   .bar .actions { width: 100%; }
-  .bar, body.sheet-open .bar, body:has(.panel.open:not(.leaving)) .bar, body.leaving .bar { animation: none; top: 0; right: 0; width: 100%; max-width: none; padding: 8px 16px; border-width: 0 0 1px; border-radius: 0; box-shadow: 0 2px 12px rgba(0,0,0,.06); }
-  .sheet, .panel { top: auto; bottom: 0; padding-top: 0; left: 0; right: 0; margin: 0 auto; width: min(100%, 640px); max-width: none; height: 60dvh; max-height: calc(100dvh - 72px); z-index: 60; border: 1px solid var(--line); border-bottom: 0; border-radius: 28px 28px 0 0; box-shadow: 0 -8px 28px rgba(0,0,0,.18); animation: sheet-up .25s ease-out; transition: height .2s ease, transform .2s ease; }
+  .bar, body.sheet-open .bar, body:has(.panel.open) .bar { animation: none; top: 0; right: 0; width: 100%; max-width: none; padding: 8px 16px; border-width: 0 0 1px; border-radius: 0; box-shadow: 0 2px 12px rgba(0,0,0,.06); }
+  .sheet, .panel { top: auto; bottom: 0; padding-top: 0; left: 0; right: 0; margin: 0 auto; width: min(100%, 640px); max-width: none; height: 60dvh; max-height: calc(100dvh - 72px); z-index: 60; border: 1px solid var(--line); border-bottom: 0; border-radius: 28px 28px 0 0; box-shadow: 0 -8px 28px rgba(0,0,0,.18); }
   .sheet.full, .panel.full { height: calc(100dvh - 72px); }
-  .sheet.dragging, .panel.dragging { transition: none; }
   .sheet .handle, .panel .handle { display: flex; }
   .sheet header { padding-top: 0; touch-action: none; }
   .sheet .sheet-body, .panel .list { overscroll-behavior: contain; padding-bottom: calc(32px + env(safe-area-inset-bottom)); }
@@ -349,7 +379,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   .flow.v > .col, .flow.v > .col > .flow > .box { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .bar, .sheet, .panel { animation: none !important; }
+  .bar { animation: none !important; }
   .theme .knob, .theme svg { transition: none !important; }
   body, .layout, nav.toc { transition: none !important; }
 }
@@ -546,6 +576,49 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   const KEYS = { j: () => jumpSection(1), k: () => jumpSection(-1), c: commentByKey };
 
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  let motion = false;
+  let queued = null;
+  let kinds = new Set();
+  let updating = false;
+  let running = Promise.resolve();
+
+  // Updates requested in the same frame share one view transition; nested calls run inside it.
+  function animate(kind, update) {
+    if (updating || !motion || !document.startViewTransition || reducedMotion.matches) {
+      update();
+      return running;
+    }
+    kinds.add(kind);
+    document.documentElement.classList.add(`vt-${kind}`);
+    if (queued) {
+      queued.push(update);
+      return running;
+    }
+    queued = [update];
+    const transition = document.startViewTransition(() => {
+      updating = true;
+      try {
+        queued.forEach((fn) => fn());
+      } finally {
+        queued = null;
+        updating = false;
+      }
+    });
+    // A newer transition skips this one; that rejects ready, which is expected, not an error.
+    transition.ready.catch(() => {});
+    const mine = kinds;
+    kinds = new Set();
+    running = transition.finished.catch(() => {}).then(() => {
+      mine.forEach((k) => {
+        if (!kinds.has(k)) {
+          document.documentElement.classList.remove(`vt-${k}`);
+        }
+      });
+    });
+    return running;
+  }
+
   const THEME_KEY = 'explainer:theme';
   const systemDark = matchMedia('(prefers-color-scheme: dark)');
   const isDark = () => (document.documentElement.dataset.theme ?? (systemDark.matches ? 'dark' : 'light')) === 'dark';
@@ -562,13 +635,9 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       try { localStorage.setItem(THEME_KEY, next); } catch {}
       showThemeButton();
     };
-    if (!document.startViewTransition || reducedMotion.matches) {
-      apply();
-      return;
-    }
     // The view transition slides the knob; its own CSS transition would move it a second time.
     $('#theme').classList.remove('ready');
-    document.startViewTransition(apply).finished.finally(() => $('#theme').classList.add('ready'));
+    animate('theme', apply).then(() => $('#theme').classList.add('ready'));
   }
 
   // An aside.more expands the element right before it, or the [data-c] it names in data-for.
@@ -793,7 +862,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       item.innerHTML = '<button>Change</button><b></b><div class="a"></div>';
       item.querySelector('b').textContent = questionText(q);
       item.querySelector('.a').textContent = answerText(c);
-      item.querySelector('button').onclick = () => { reopened = q; renderQuestions(); $('.qcard textarea').focus(); };
+      item.querySelector('button').onclick = () => { reopened = q; renderQuestions(); };
       const after = document.createElement('div');
       after.className = c.reply ? 'reply' : 'wait';
       if (c.reply) {
@@ -820,16 +889,25 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     const q = nextQuestion();
     if (q !== shownQuestion) {
       shownQuestion = q;
-      zone.querySelector('.qcard')?.remove();
-      if (q) {
-        zone.querySelector('.qz-head').after(questionCard(q));
-      }
+      animate('question', () => {
+        zone.querySelector('.qcard')?.remove();
+        if (q) {
+          const card = questionCard(q);
+          zone.querySelector('.qz-head').after(card);
+          if (q === reopened) {
+            card.querySelector('textarea').focus();
+          }
+        }
+      });
     }
     const sig = sent.filter((c) => c.kind === 'answer').map((c) => `${c.id}${c.reply ? '+' : ''}`).join();
     if (sig !== logSig) {
       logSig = sig;
-      zone.querySelector('details.qa')?.remove();
-      zone.appendChild(questionLog());
+      animate('question', () => {
+        const log = questionLog();
+        zone.querySelector('details.qa')?.remove();
+        zone.appendChild(log);
+      });
     }
   }
 
@@ -862,8 +940,18 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     }
   }
 
+  // A popover on its way out is still in the DOM until the transition's update runs.
+  const openPopEl = () => document.querySelector('.pop:not(.closing)');
+
   function closePop() {
-    document.querySelectorAll('.pop').forEach((p) => p.remove());
+    const pops = document.querySelectorAll('.pop:not(.closing)');
+    pops.forEach((p) => p.classList.add('closing'));
+    if (document.activeElement?.closest('.pop.closing')) {
+      document.activeElement.blur();
+    }
+    if (pops.length) {
+      animate('pop', () => pops.forEach((p) => p.remove()));
+    }
     if (pendingReload) {
       reloadKeepingScroll();
     }
@@ -974,12 +1062,15 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   }
 
   function openSheet(owner, tab) {
+    animate('side', () => showSheet(owner, tab));
+  }
+
+  function showSheet(owner, tab) {
     const refs = served ? refsFor(owner) : [];
-    stopLeaving($('.sheet'));
     sheetRefs = null;
     sheetOwner = owner;
     sheetTab = tab === 'code' && refs.length ? 'code' : 'info';
-    togglePanel(false, true);
+    togglePanel(false);
     document.querySelectorAll('.sheet-owner').forEach((e) => e.classList.remove('sheet-owner'));
     owner.classList.add('sheet-owner');
     const sheet = $('.sheet');
@@ -1008,7 +1099,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     const sheet = e.currentTarget.closest('.sheet, .panel');
     const startY = e.clientY;
     let dy = 0;
-    sheet.classList.add('dragging');
     e.target.setPointerCapture(e.pointerId);
     const move = (ev) => {
       dy = ev.clientY - startY;
@@ -1016,9 +1106,10 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     };
     const end = () => {
       e.target.removeEventListener('pointermove', move);
-      sheet.classList.remove('dragging');
-      sheet.style.transform = '';
-      settleSheet(sheet, dy);
+      animate('side', () => {
+        sheet.style.transform = '';
+        settleSheet(sheet, dy);
+      });
     };
     e.target.addEventListener('pointermove', move);
     e.target.addEventListener('pointerup', end, { once: true });
@@ -1046,53 +1137,17 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     closeSheet();
   }
 
-  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-
-  function slideOut(el, done) {
-    if (compact.matches || reducedMotion.matches) {
-      done();
-      return;
-    }
-    const end = (ev) => {
-      if (ev.target !== el) {
-        return;
-      }
-      el.removeEventListener('animationend', end);
-      el.removeEventListener('animationcancel', end);
-      const finished = ev.type === 'animationend' && el.classList.contains('leaving');
-      el.classList.remove('leaving');
-      document.body.classList.remove('leaving');
-      if (finished) {
-        done();
-      }
-    };
-    el.addEventListener('animationend', end);
-    el.addEventListener('animationcancel', end);
-    el.classList.add('leaving');
-    document.body.classList.add('leaving');
-  }
-
-  function stopLeaving(el) {
-    el.classList.remove('leaving');
-    document.body.classList.remove('leaving');
-  }
-
-  function closeSheet(instant = false) {
-    const sheet = $('.sheet');
-    const finish = () => {
+  function closeSheet() {
+    animate('side', () => {
+      const sheet = $('.sheet');
       parkMore();
       sheet.hidden = true;
       sheet.classList.remove('full');
-    };
-    if (instant) {
-      finish();
-    } else {
-      slideOut(sheet, finish);
-    }
-    document.body.classList.remove('sheet-open');
-    sheetOwner?.classList.remove('sheet-owner');
-    sheetOwner = null;
-    try { sessionStorage.removeItem(SHEET_KEY); } catch {}
+      document.body.classList.remove('sheet-open');
+      sheetOwner?.classList.remove('sheet-owner');
+      sheetOwner = null;
+      try { sessionStorage.removeItem(SHEET_KEY); } catch {}
+    });
     if (pendingReload) {
       reloadKeepingScroll();
     }
@@ -1130,7 +1185,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   }
 
   function openPop({ anchor, target, quote, text, general, tools, onSend, onBatch }) {
-    document.querySelectorAll('.pop').forEach((p) => p.remove());
     const pop = document.createElement('div');
     pop.className = general ? 'pop general' : 'pop';
     pop.innerHTML = '<div class="target"></div><q></q><div class="tools"></div><textarea></textarea><div class="row"><button data-a="cancel">Cancel</button><button data-a="batch">Add to batch</button><button data-a="send" class="primary">Send now ⌘↵</button></div>';
@@ -1151,11 +1205,19 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     if (tools) {
       addTools(pop, anchor);
     }
-    document.body.appendChild(pop);
-    if (!general) {
-      placePop(pop, anchor);
-    }
+    showPop(pop, general ? null : anchor);
     ta.focus();
+  }
+
+  function showPop(pop, anchor) {
+    animate('pop', () => {
+      document.querySelectorAll('.pop').forEach((p) => p.remove());
+      document.body.appendChild(pop);
+      if (anchor) {
+        placePop(pop, anchor);
+      }
+      pop.querySelector('textarea')?.focus();
+    });
   }
 
   function commentFrom(el, text, quote) {
@@ -1202,24 +1264,21 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     render();
   }
 
-  function togglePanel(open, instant = false) {
-    const panel = $('.panel');
-    if (open && sheetOwner) {
-      closeSheet(true);
-    }
-    if (open) {
-      stopLeaving(panel);
-      panel.classList.add('open');
-    } else if (instant) {
-      panel.classList.remove('open', 'full');
-    } else if (panel.classList.contains('open')) {
-      slideOut(panel, () => panel.classList.remove('open', 'full'));
-    }
-    $('#list').classList.toggle('on', open);
-    $('#list').classList.remove('pulse');
-    if (open && !compact.matches) {
-      $('.panel .general textarea').focus();
-    }
+  function togglePanel(open) {
+    animate('side', () => {
+      if (open && sheetOwner) {
+        closeSheet();
+      }
+      $('.panel').classList.toggle('open', open);
+      if (!open) {
+        $('.panel').classList.remove('full');
+      }
+      $('#list').classList.toggle('on', open);
+      $('#list').classList.remove('pulse');
+      if (open && !compact.matches) {
+        $('.panel .general textarea').focus();
+      }
+    });
   }
 
   function editDraft(i) {
@@ -1306,7 +1365,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       li.textContent = text;
       list.appendChild(li);
     });
-    dialog.showModal();
+    animate('dialog', () => dialog.showModal());
   }
 
   async function sendBatch() {
@@ -1398,7 +1457,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     if (!ask) {
       return;
     }
-    closePop();
     const pop = document.createElement('div');
     pop.className = 'pop status-help';
     pop.innerHTML = '<div class="target"></div><p></p><pre></pre><div class="row"><button data-a="close">Close</button><button data-a="copy" class="primary">Copy</button></div>';
@@ -1415,8 +1473,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
         e.target.textContent = 'Press ⌘C';
       }
     };
-    document.body.appendChild(pop);
-    placePop(pop, $('#status'));
+    showPop(pop, $('#status'));
   }
 
   async function poll() {
@@ -1444,6 +1501,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       showUnseen(replies);
       sent = state.sent;
       render();
+      motion = true;
     } catch {
       showStatus('offline');
     }
@@ -1484,7 +1542,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     const el = e.target.closest('[data-ct]');
     if (el) {
       commentOn(el);
-    } else if (document.querySelector('.pop:not(.general)')) {
+    } else if (openPopEl() && !openPopEl().matches('.general')) {
       closePop();
     }
   });
@@ -1512,7 +1570,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     if (e.key !== 'Escape' || $('dialog.confirm').open) {
       return;
     }
-    if (document.querySelector('.pop')) {
+    if (openPopEl()) {
       closePop();
     } else if (sheetOwner) {
       closeSheet();
@@ -1549,9 +1607,14 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   $('#send').onclick = sendBatch;
   $('#approve').onclick = requestApproval;
   document.addEventListener('visibilitychange', () => showUnseen(sent.filter((c) => c.reply).length));
-  $('dialog.confirm [data-a=cancel]').onclick = () => $('dialog.confirm').close();
+  const closeDialog = () => animate('dialog', () => $('dialog.confirm').close());
+  $('dialog.confirm [data-a=cancel]').onclick = closeDialog;
+  $('dialog.confirm').addEventListener('cancel', (e) => {
+    e.preventDefault();
+    closeDialog();
+  });
   $('dialog.confirm [data-a=ok]').onclick = () => {
-    $('dialog.confirm').close();
+    closeDialog();
     approve();
   };
   $('#reload').onclick = reloadKeepingScroll;
@@ -1573,7 +1636,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   render();
   restoreScroll();
   restoreSheet();
-  if (served) { poll(); setInterval(poll, 2000); }
+  if (served) { poll(); setInterval(poll, 2000); } else { requestAnimationFrame(() => { motion = true; }); }
 })();
 </script>
 </body>
