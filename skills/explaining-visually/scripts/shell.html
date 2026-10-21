@@ -212,15 +212,15 @@ html:not(.vt-theme)::view-transition-new(root) { animation: none; }
 @keyframes vt-fade-in { from { opacity: 0; } }
 @keyframes vt-fade-out { to { opacity: 0; } }
 
-/* Desktop sheet: the bar rises into the sheet's top, the sheet unrolls down from it, then the data slides in */
+/* Desktop sheet: the bar grows into the sheet's top, the sheet unrolls down from it, then the data slides in */
 ::view-transition-old(bar), ::view-transition-new(bar) { width: 100%; height: 100%; object-fit: none; object-position: right top; }
-html.vt-side-open::view-transition-old(bar) { animation: vt-fade-out .1s ease-in forwards; }
-html.vt-side-open::view-transition-new(bar) { animation: vt-fade-in .2s .12s ease-out both; }
-html.vt-side-close::view-transition-old(bar) { animation: vt-fade-out .15s .25s ease-in both; }
-html.vt-side-close::view-transition-new(bar) { animation: vt-fade-in .2s .32s ease-out both; }
+/* Docked or floating, the bar's row sits in the same place against its right edge, so the morph moves one bar */
+::view-transition-group(bar) { overflow: clip; }
+::view-transition-old(bar), ::view-transition-new(bar) { animation-duration: .2s; }
+html.vt-side-close::view-transition-old(bar), html.vt-side-close::view-transition-new(bar) { animation-delay: .25s; animation-fill-mode: both; }
 html.vt-side:not(.vt-side-open, .vt-side-close)::view-transition-old(bar) { display: none; }
 html.vt-side:not(.vt-side-open, .vt-side-close)::view-transition-new(bar) { animation: none; }
-html.vt-side-close::view-transition-group(bar) { animation-delay: .12s; animation-fill-mode: both; }
+html.vt-side-close::view-transition-group(bar) { animation-delay: .18s; animation-fill-mode: both; }
 ::view-transition-new(side):only-child { animation: vt-unroll .45s .06s cubic-bezier(.2, 0, 0, 1) both; }
 ::view-transition-old(side):only-child { animation: vt-rollup .3s .1s cubic-bezier(.4, 0, 1, 1) forwards; }
 ::view-transition-old(side) { animation: none; }
@@ -229,8 +229,8 @@ html.vt-side-close::view-transition-group(bar) { animation-delay: .12s; animatio
 ::view-transition-old(side-data):only-child { animation: vt-data-out .15s ease-in forwards; }
 ::view-transition-old(side-data) { animation: vt-fade-out .1s ease-in forwards; }
 ::view-transition-new(side-data) { animation: vt-data-in .3s .1s cubic-bezier(.2, 0, 0, 1) both; }
-@keyframes vt-unroll { from { clip-path: inset(0 0 calc(100% - var(--bar-h)) 0 round 16px 0 0 0); } to { clip-path: inset(0 round 16px 0 0 16px); } }
-@keyframes vt-rollup { from { clip-path: inset(0 round 16px 0 0 16px); } 80% { opacity: 1; } to { clip-path: inset(0 0 calc(100% - var(--bar-h)) 0 round 16px 0 0 0); opacity: 0; } }
+@keyframes vt-unroll { from { clip-path: inset(0 0 100% 0 round 16px 0 0 16px); } to { clip-path: inset(0 round 16px 0 0 16px); } }
+@keyframes vt-rollup { to { clip-path: inset(0 0 100% 0 round 16px 0 0 16px); } }
 @keyframes vt-data-in { from { opacity: 0; transform: translateX(28px); } }
 @keyframes vt-data-out { to { opacity: 0; transform: translateX(16px); } }
 
@@ -259,8 +259,8 @@ html.vt-side-close::view-transition-group(bar) { animation-delay: .12s; animatio
 .bar .status { order: -2; }
 .bar .actions { display: flex; gap: 8px; }
 .bar .actions button { flex: 1 1 auto; white-space: nowrap; }
-body.sheet-open .bar, body:has(.panel.open) .bar { top: 0; right: 0; width: var(--sheet-w); max-width: 100vw; border-right: 0; border-radius: 16px 0 0 0; box-shadow: none; }
-body.sheet-open .bar .actions, body:has(.panel.open) .bar .actions { width: 100%; }
+body.sheet-open .bar, body:has(.panel.open) .bar { top: 0; right: 0; width: var(--sheet-w); max-width: 100vw; border-right-color: transparent; border-radius: 16px 0 0 0; box-shadow: none; }
+body.sheet-open .bar .status, body:has(.panel.open) .bar .status { margin-right: 0; }
 @keyframes bar-in { from { opacity: 0; } }
 .bar button, .pop button, .panel button, .qzone button { font: inherit; font-size: 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); padding: 6px 12px; cursor: pointer; }
 .bar button.send { background: var(--fg); color: var(--bg); border-color: var(--fg); }
