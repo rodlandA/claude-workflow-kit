@@ -1,0 +1,75 @@
+<h1 data-mode="plan">Move session tokens into httpOnly cookies</h1>
+<p class="lede">Today any script on the page can read the session token. After this change only the browser can.</p>
+
+<div class="q" id="q-mobile">
+  <b>Should the mobile app move to cookies too?</b>
+  <small>Decides whether step 3 can drop the bearer path entirely.</small>
+  <ol>
+    <li class="rec">Move it too<small>One auth path; needs an app release first.</small></li>
+    <li>Keep bearer for mobile<small>Two auth paths stay, step 3 shrinks.</small></li>
+  </ol>
+</div>
+<div class="q" id="q-integrations">
+  <b>Does any third-party integration read the token from the login response body?</b>
+</div>
+
+<ul class="tldr">
+  <li><b>Why</b>An XSS bug today means a stolen session.</li>
+  <li><b>What changes</b>Login sets a cookie; the client stops touching the token.</li>
+  <li><b>Size</b>3 files, one migration step, no schema change.</li>
+</ul>
+
+<section id="today">
+  <h2>How a request is authenticated today</h2>
+  <div class="flow">
+    <div class="box"><b>Login form</b><small>POST /login</small></div>
+    <div class="arrow">token in body</div>
+    <div class="box"><b>localStorage</b><small>readable by any script</small><code>auth/store.ts:14</code></div>
+    <div class="arrow">Authorization header</div>
+    <div class="box"><b>API</b><small>validates bearer</small></div>
+  </div>
+</section>
+
+<section id="after">
+  <h2>What it looks like after</h2>
+  <div class="legend"><span class="new">new</span><span class="changed">changed</span><span class="removed">removed</span></div>
+  <div class="cols">
+    <div class="col">
+      <h4>Before</h4>
+      <div class="flow v">
+        <div class="box"><b>Login response</b><small>token in JSON body</small></div>
+        <div class="arrow"></div>
+        <div class="box removed"><b>localStorage write</b></div>
+      </div>
+    </div>
+    <div class="col">
+      <h4>After</h4>
+      <div class="flow v">
+        <div class="box changed"><b>Login response</b><small>Set-Cookie: session; HttpOnly; SameSite=Lax</small></div>
+        <div class="arrow">sent automatically</div>
+        <div class="box new"><b>Cookie auth middleware</b><code>api/auth/cookie.ts</code></div>
+      </div>
+    </div>
+  </div>
+  <div class="callout trap"><b>Trap</b>SameSite=Lax still sends the cookie on top-level GET navigations, so every GET must stay side-effect free.</div>
+</section>
+
+<section id="steps">
+  <h2>Steps</h2>
+  <ol class="steps">
+    <li class="step new"><b>Add cookie middleware beside bearer auth</b><small>Both accepted, so old clients keep working.</small></li>
+    <li class="step changed"><b>Login sets the cookie</b><small>The body still carries the token for one release.</small></li>
+    <li class="step removed"><b>Drop localStorage and the bearer path</b><small>After one release cycle.</small></li>
+  </ol>
+</section>
+
+<section id="files">
+  <h2>Where it happens</h2>
+  <table class="files">
+    <tr><th>File</th><th>Role</th></tr>
+    <tr data-c="cookie.ts"><td><code>api/auth/cookie.ts</code></td><td>New middleware</td></tr>
+    <tr><td><code>api/routes/login.ts</code></td><td>Sets the cookie</td></tr>
+    <tr><td><code>web/auth/store.ts</code></td><td>Deleted in step 3</td></tr>
+  </table>
+  <aside class="more" data-for="cookie.ts"><p>Reads the session cookie and sets the same request user the bearer path sets, so routes need no change.</p></aside>
+</section>

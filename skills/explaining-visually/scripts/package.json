@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Only check.mjs needs this; serve.mjs has no dependencies.",
+  "dependencies": {
+    "playwright-core": "1.63.0"
+  }
+}

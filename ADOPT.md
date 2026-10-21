@@ -170,6 +170,26 @@ Set `EXCLUDE_PATTERN` for generated output, so a regeneration does not trip the 
 prints the path you installed to — not another copy, and not nothing (`tools/README.md`
 has the PATH line). If F is skipped, remove the `git review` mention from `branch-workflow.md`.
 
+### G. Visual explainers
+
+`skills/explaining-visually/` → `~/.claude/skills/`. It is global by nature: one local server
+per repo serves every explainer, and the pages live in `~/.claude/explainers/<repo>/`, never in
+the repo. Needs Node 20+. Nothing to adapt — the agent asks its one question in the
+conversation's language.
+
+Then `npm --prefix ~/.claude/skills/explaining-visually/scripts install`, which pulls
+`playwright-core` for `check.mjs` alone; the server has no dependencies. Run
+`node ~/.claude/skills/explaining-visually/scripts/check.mjs` — it needs an installed Chrome
+or Chromium and must end with `all passed`.
+
+Offer this line for `~/.claude/CLAUDE.md` § Working style, so plans and walkthroughs reach the
+skill without being asked for by name:
+
+> **Offer the visual explainer first.** When I ask for a plan, or how something works, and the
+> answer needs more than about ten lines, your reply is one question and nothing else: whether
+> I want it as a visual explainer (`explaining-visually` skill) or in the terminal. The
+> explanation comes after my answer. Ask once per topic.
+
 ## References between files
 
 Moving a file to another layer breaks whatever names its path. Check these after any
