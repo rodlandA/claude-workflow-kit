@@ -75,18 +75,6 @@ const oneLine = (slug, c) => {
   return `[${slug}] ${kind} ${c.id} ${where}${quote} :: ${text}`;
 };
 
-if (flag('reply')) {
-  reply(option('reply'), positional.find((p) => !p.endsWith('.html')));
-} else if (flag('pending')) {
-  pending();
-} else if (flag('watch')) {
-  watch();
-} else if (option('export')) {
-  exportPage(option('export'));
-} else {
-  serve();
-}
-
 function reply(id, text) {
   const slug = slugs().find((s) => readComments(s).some((c) => c.id === id));
   if (!slug || !text) {
@@ -140,7 +128,10 @@ function exportPage(out) {
     console.error(`no page ${targetSlug} in ${dir}`);
     process.exit(2);
   }
-  fs.writeFileSync(out, render(targetSlug, fs.readFileSync(bodyOf(targetSlug), 'utf8')));
+  // A standalone copy has no server behind it, so the fonts travel inside it.
+  const inlineFont = (_, file) => `url("data:font/woff2;base64,${fs.readFileSync(new URL(`./fonts/${file}`, import.meta.url)).toString('base64')}")`;
+  const page = render(targetSlug, fs.readFileSync(bodyOf(targetSlug), 'utf8')).replace(/url\("\/_fonts\/([\w-]+\.woff2)"\)/g, inlineFont);
+  fs.writeFileSync(out, page);
   console.log(`exported ${out}`);
 }
 
@@ -423,4 +414,16 @@ function readJsonText(raw) {
   } catch {
     return null;
   }
+}
+
+if (flag('reply')) {
+  reply(option('reply'), positional.find((p) => !p.endsWith('.html')));
+} else if (flag('pending')) {
+  pending();
+} else if (flag('watch')) {
+  watch();
+} else if (option('export')) {
+  exportPage(option('export'));
+} else {
+  serve();
 }

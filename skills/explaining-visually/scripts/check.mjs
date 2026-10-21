@@ -220,6 +220,17 @@ async function checkToc(browser, url) {
   await page.close();
 }
 
+async function checkExport(browser, dir) {
+  const out = path.join(dir, 'export.html');
+  execFileSync(process.execPath, [path.join(here, 'serve.mjs'), 'example', '--dir', dir, '--export', out]);
+  const html = fs.readFileSync(out, 'utf8');
+  check(!html.includes('/_fonts/') && html.includes('data:font/woff2'), 'export: fonts are inlined');
+  const page = await browser.newPage();
+  await page.goto(`file://${out}`);
+  check(await page.evaluate(async () => { await document.fonts.ready; return document.fonts.check('15px Geist'); }), 'export: the standalone file renders in Geist');
+  await page.close();
+}
+
 async function main() {
   check(cssBalanced(), 'shell.html: CSS braces balance');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'explainer-check-'));
@@ -234,6 +245,7 @@ async function main() {
     }
     await checkQuestions(browser, url, dir);
     await checkToc(browser, url);
+    await checkExport(browser, dir);
   } finally {
     await browser?.close();
     child.kill();
