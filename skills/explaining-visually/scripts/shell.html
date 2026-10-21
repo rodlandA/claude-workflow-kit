@@ -185,7 +185,10 @@ svg .edge { stroke: var(--muted); stroke-width: 1.5; fill: none; }
 .theme[aria-checked="true"] .knob { transform: translateX(24px); background: #eee9df; color: #2c3b4d; }
 /* Every state change runs through animate(kind); html.vt-<kind> names only what that change moves */
 html:is(.vt-side, .vt-side-open, .vt-side-close) :is(.sheet, .panel) { view-transition-name: side; }
-@media (min-width: 840px) { html:is(.vt-side, .vt-side-open, .vt-side-close) .bar { view-transition-name: bar; } }
+@media (min-width: 840px) {
+  html:is(.vt-side, .vt-side-open, .vt-side-close) .bar { view-transition-name: bar; }
+  html:is(.vt-side, .vt-side-open, .vt-side-close) :is(.sheet, .panel) > .inner { view-transition-name: side-data; }
+}
 @media (max-width: 839px) { html:is(.vt-side-open, .vt-side-close) .scrim { view-transition-name: scrim; } }
 html.vt-theme .theme .knob { view-transition-name: theme-knob; }
 html.vt-question .qzone { view-transition-name: qzone; }
@@ -196,48 +199,61 @@ html.vt-dialog dialog.confirm { view-transition-name: dialog; }
 /* Snapshots cannot reflow text, so outside a theme change the page stays live and takes its new layout at once */
 html:not(.vt-theme)::view-transition-old(root) { display: none; }
 html:not(.vt-theme)::view-transition-new(root) { animation: none; }
-/* The bar is the sheet's top while one is open, so it slides with it; the group stays put and each image moves itself */
-::view-transition-group(bar) { animation: none; }
-::view-transition-old(bar), ::view-transition-new(bar) { width: 100%; height: 100%; object-fit: none; object-position: right top; }
-html.vt-side:not(.vt-side-open, .vt-side-close)::view-transition-old(bar) { display: none; }
-html.vt-side:not(.vt-side-open, .vt-side-close)::view-transition-new(bar) { animation: none; }
-html.vt-side-open::view-transition-old(bar) { animation: vt-bar-leave .12s ease-out forwards; }
-html.vt-side-open::view-transition-new(bar) { animation: vt-side-in var(--vt-in); }
-html.vt-side-close::view-transition-old(bar) { animation: vt-bar-out var(--vt-out); }
-html.vt-side-close::view-transition-new(bar) { animation: vt-fade-in .2s .2s both; }
-@keyframes vt-bar-leave { from, to { transform: translate(-16px, 16px); } to { opacity: 0; } }
-@keyframes vt-bar-out { from { transform: translate(16px, -16px); } to { transform: translate(calc(var(--sheet-w) + 16px), -16px); } }
-@keyframes vt-fade-in { from { opacity: 0; } }
 ::view-transition-group(*) { animation-duration: .45s; animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
 ::view-transition-group(root) { animation-timing-function: ease-in-out; }
 ::view-transition-group(qzone) { z-index: 1; overflow: clip; border-radius: 20px; }
 ::view-transition-group(qcard), ::view-transition-group(qlog) { z-index: 2; overflow: clip; border-radius: 14px; }
+::view-transition-group(scrim) { z-index: 2; }
 ::view-transition-group(side) { z-index: 3; }
-::view-transition-group(bar) { z-index: 4; }
-::view-transition-group(theme-knob) { z-index: 5; }
-::view-transition-group(pop), ::view-transition-group(dialog) { z-index: 6; }
+::view-transition-group(side-data) { z-index: 4; }
+::view-transition-group(bar) { z-index: 5; }
+::view-transition-group(theme-knob) { z-index: 6; }
+::view-transition-group(pop), ::view-transition-group(dialog) { z-index: 7; }
+@keyframes vt-fade-in { from { opacity: 0; } }
+@keyframes vt-fade-out { to { opacity: 0; } }
+
+/* Desktop sheet: the bar rises into the sheet's top, the sheet unrolls down from it, then the data slides in */
+::view-transition-old(bar), ::view-transition-new(bar) { width: 100%; height: 100%; object-fit: none; object-position: right top; }
+html.vt-side-open::view-transition-old(bar) { animation: vt-fade-out .1s ease-in forwards; }
+html.vt-side-open::view-transition-new(bar) { animation: vt-fade-in .2s .12s ease-out both; }
+html.vt-side-close::view-transition-old(bar) { animation: vt-fade-out .15s .25s ease-in both; }
+html.vt-side-close::view-transition-new(bar) { animation: vt-fade-in .2s .32s ease-out both; }
+html.vt-side:not(.vt-side-open, .vt-side-close)::view-transition-old(bar) { display: none; }
+html.vt-side:not(.vt-side-open, .vt-side-close)::view-transition-new(bar) { animation: none; }
+html.vt-side-close::view-transition-group(bar) { animation-delay: .12s; animation-fill-mode: both; }
+::view-transition-new(side):only-child { animation: vt-unroll .45s .06s cubic-bezier(.2, 0, 0, 1) both; }
+::view-transition-old(side):only-child { animation: vt-rollup .3s .1s cubic-bezier(.4, 0, 1, 1) forwards; }
+::view-transition-old(side) { animation: none; }
+::view-transition-new(side) { animation: none; }
+::view-transition-new(side-data):only-child { animation: vt-data-in .4s .18s cubic-bezier(.2, 0, 0, 1) both; }
+::view-transition-old(side-data):only-child { animation: vt-data-out .15s ease-in forwards; }
+::view-transition-old(side-data) { animation: vt-fade-out .1s ease-in forwards; }
+::view-transition-new(side-data) { animation: vt-data-in .3s .1s cubic-bezier(.2, 0, 0, 1) both; }
+@keyframes vt-unroll { from { clip-path: inset(0 0 calc(100% - var(--bar-h)) 0 round 16px 0 0 0); } to { clip-path: inset(0 round 16px 0 0 16px); } }
+@keyframes vt-rollup { from { clip-path: inset(0 round 16px 0 0 16px); } 80% { opacity: 1; } to { clip-path: inset(0 0 calc(100% - var(--bar-h)) 0 round 16px 0 0 0); opacity: 0; } }
+@keyframes vt-data-in { from { opacity: 0; transform: translateX(28px); } }
+@keyframes vt-data-out { to { opacity: 0; transform: translateX(16px); } }
+
+/* Compact: a bottom sheet rising over a fading scrim */
+@media (max-width: 839px) {
+  ::view-transition-new(side):only-child { animation: vt-rise var(--vt-in); }
+  ::view-transition-old(side):only-child { animation: vt-sink var(--vt-out); }
+  ::view-transition-old(side) { animation: vt-fade-out .1s ease-in forwards; }
+  ::view-transition-new(side) { animation: vt-fade-in .25s .1s both; }
+}
+::view-transition-new(scrim):only-child { animation: vt-fade-in .3s ease-out; }
+::view-transition-old(scrim):only-child { animation: vt-fade-out .25s ease-in forwards; }
+@keyframes vt-rise { from { transform: translateY(100%); } }
+@keyframes vt-sink { to { transform: translateY(100%); } }
+
 ::view-transition-old(qzone), ::view-transition-new(qzone), ::view-transition-old(qcard), ::view-transition-new(qcard), ::view-transition-old(qlog), ::view-transition-new(qlog) { width: 100%; height: 100%; object-fit: none; object-position: left top; }
 ::view-transition-old(qcard) { animation: vt-fade-out .1s ease-in forwards; }
 ::view-transition-new(qcard) { animation: vt-q-in .35s .1s cubic-bezier(.05, .7, .1, 1) both; }
-@keyframes vt-fade-out { to { opacity: 0; } }
 @keyframes vt-q-in { from { opacity: 0; transform: translateX(24px); } }
-::view-transition-old(side) { animation: vt-fade-out .1s ease-in forwards; }
-::view-transition-new(side) { animation: vt-fade-in .25s .1s both; }
-::view-transition-new(side):only-child { animation: vt-side-in var(--vt-in); }
-::view-transition-new(scrim):only-child { animation: vt-fade-in .3s ease-out; }
-::view-transition-old(scrim):only-child { animation: vt-fade-out .25s ease-in forwards; }
-::view-transition-group(scrim) { z-index: 2; }
-::view-transition-old(side):only-child { animation: vt-side-out var(--vt-out); }
 ::view-transition-new(pop):only-child, ::view-transition-new(dialog):only-child { animation: vt-pop-in .2s ease-out; }
 ::view-transition-old(pop):only-child, ::view-transition-old(dialog):only-child { animation: vt-pop-out .15s ease-in forwards; }
-@keyframes vt-side-in { from { transform: translateX(100%); } }
-@keyframes vt-side-out { to { transform: translateX(100%); } }
 @keyframes vt-pop-in { from { opacity: 0; transform: translateY(-6px) scale(.97); } }
 @keyframes vt-pop-out { to { opacity: 0; transform: scale(.97); } }
-@media (max-width: 839px) {
-  @keyframes vt-side-in { from { transform: translateY(100%); } }
-  @keyframes vt-side-out { to { transform: translateY(100%); } }
-}
 .theme.ready .knob { transition: transform .4s cubic-bezier(.05, .7, .1, 1), background-color .4s; }
 .theme.ready svg { transition: transform .4s cubic-bezier(.05, .7, .1, 1), opacity .25s; }
 .bar .status { order: -2; }
@@ -305,6 +321,7 @@ svg .delta > :is(rect, circle, ellipse, path, polygon) { stroke: var(--new); str
 .sheet .tabs { display: flex; padding: 0 12px; border-bottom: 1px solid var(--line); }
 .sheet .tabs button { font: inherit; font-size: 14px; font-weight: 600; background: none; border: 0; color: var(--muted); padding: 12px 16px 10px; border-bottom: 3px solid transparent; cursor: pointer; }
 .sheet .tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
+.sheet > .inner, .panel > .inner { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .sheet .sheet-body { flex: 1; overflow: auto; padding: 16px 24px 32px; }
 .sheet .sheet-body > aside.more { display: block; }
 .sheet .sheet-body code.ref { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
@@ -420,19 +437,23 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 </div>
 <aside class="panel">
   <div class="handle" title="Drag to resize or close"></div>
+  <div class="inner">
   <div class="general">
     <h5>General comment</h5>
     <textarea placeholder="The bigger picture: direction, scope, what is missing, what to cut…"></textarea>
     <div class="row"><button data-a="batch">Add to batch</button><button data-a="send" class="primary">Send now ⌘↵</button></div>
   </div>
   <div class="list"></div>
+  </div>
 </aside>
 <div class="scrim"></div>
 <aside class="sheet" hidden aria-label="Details">
   <div class="handle" title="Drag to resize or close"></div>
+  <div class="inner">
   <header><div class="title"></div><button class="close" title="Close (Esc)">&#x2715;</button></header>
   <nav class="tabs"><button data-tab="info">Info</button><button data-tab="code">Code</button></nav>
   <div class="sheet-body"></div>
+  </div>
 </aside>
 <dialog class="confirm">
   <h3>Approve with open items?</h3>
