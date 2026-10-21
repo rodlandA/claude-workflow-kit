@@ -624,8 +624,21 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       toc.appendChild(tocLink(`#${anchor.id}`, h.textContent.trim(), isH2 ? String(n).padStart(2, '0') : '', isH2 ? '' : 'sub'));
     });
     toc.insertAdjacentHTML('beforeend', '<div class="keys"><kbd>j</kbd> <kbd>k</kbd> section · <kbd>c</kbd> comment</div>');
+    toc.addEventListener('click', (e) => {
+      const a = e.target.closest('a');
+      if (a) {
+        pinTo(document.getElementById(a.hash.slice(1)));
+      }
+    });
     addEventListener('scroll', spyToc, { passive: true });
     addEventListener('resize', spyToc);
+    addEventListener('wheel', unpin, { passive: true });
+    addEventListener('touchmove', unpin, { passive: true });
+    addEventListener('keydown', (e) => {
+      if (SCROLL_KEYS.includes(e.key) && !e.target.closest?.('textarea, input, [contenteditable]')) {
+        unpin();
+      }
+    });
     spyToc();
   }
 
@@ -634,8 +647,24 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   const lastPassed = (els) => els.filter((el) => el.getBoundingClientRect().top <= landing()).pop() ?? null;
 
+  // A clicked or j/k target stays active until the reader scrolls by hand: a short page cannot bring it to the top.
+  let pinned = null;
+  const SCROLL_KEYS = ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '];
+
+  function pinTo(el) {
+    pinned = el;
+    spyToc();
+  }
+
+  function unpin() {
+    if (pinned) {
+      pinned = null;
+      spyToc();
+    }
+  }
+
   function currentSection() {
-    return lastPassed(sectionsOf());
+    return pinned?.matches('main section[id]') ? pinned : lastPassed(sectionsOf());
   }
 
   let spyFrame = 0;
@@ -647,7 +676,10 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       const links = [...document.querySelectorAll('nav.toc a')];
       const targets = links.map((a) => document.getElementById(a.hash.slice(1)));
       const atBottom = innerHeight + scrollY >= document.documentElement.scrollHeight - 2;
-      const active = atBottom ? targets.at(-1) : lastPassed(targets.filter(Boolean)) ?? targets[0];
+      let active = pinned;
+      if (!active) {
+        active = atBottom ? targets.at(-1) : lastPassed(targets.filter(Boolean)) ?? targets[0];
+      }
       links.forEach((a, i) => a.classList.toggle('active', targets[i] === active));
     });
   }
@@ -655,7 +687,10 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   function jumpSection(step) {
     const sections = sectionsOf();
     const next = sections[sections.indexOf(currentSection()) + step];
-    next?.scrollIntoView({ behavior: reducedMotion.matches ? 'auto' : 'smooth', block: 'start' });
+    if (next) {
+      next.scrollIntoView({ behavior: reducedMotion.matches ? 'auto' : 'smooth', block: 'start' });
+      pinTo(next);
+    }
   }
 
   function commentByKey() {

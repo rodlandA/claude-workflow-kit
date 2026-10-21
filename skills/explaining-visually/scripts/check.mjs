@@ -203,6 +203,18 @@ async function checkToc(browser, url) {
   await page.waitForTimeout(400);
   const last = await page.evaluate(() => [...document.querySelectorAll('nav.toc a')].at(-1).hash);
   check((await active()) === last, 'toc: the last entry is active at the bottom');
+  await page.locator('nav.toc a[href="#steps"]').click();
+  await page.waitForTimeout(800);
+  check((await active()) === '#steps', 'toc: a clicked entry stays active although the page cannot scroll it to the top');
+  await page.mouse.move(700, 450);
+  await page.mouse.wheel(0, -5000);
+  await page.waitForTimeout(800);
+  check((await active()) === '#questions', 'toc: scrolling by hand hands the indicator back to the scroll position');
+  for (let i = 0; i < 4; i += 1) {
+    await page.keyboard.press('j');
+    await page.waitForTimeout(150);
+  }
+  check((await active()) === '#files', 'toc: j walks every section even where the page cannot scroll further');
   const numbers = await page.evaluate(() => [...document.querySelectorAll('nav.toc a:not(.qlink, .sub) .n')].map((n) => n.textContent).join());
   check(numbers === '01,02,03,04', `toc: entries are numbered like the sections (${numbers})`);
   await page.close();
