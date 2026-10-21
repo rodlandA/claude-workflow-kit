@@ -64,8 +64,6 @@ section { margin: 0 0 56px; }
 nav.toc .keys { margin-top: 18px; padding-left: 12px; font-size: 12px; color: var(--muted); }
 nav.toc kbd { font-family: var(--mono); font-size: 11px; padding: 0 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--card); }
 main { counter-reset: sec; }
-.layout { transition: grid-template-columns .25s cubic-bezier(.3, 0, .8, .15), gap .25s cubic-bezier(.3, 0, .8, .15); }
-nav.toc { transition: opacity .2s; }
 section > h2 { counter-increment: sec; font-size: 24px; font-weight: 600; letter-spacing: -.02em; margin: 0 0 16px; padding-top: 14px; border-top: 1px solid var(--line); }
 section > h2::before { content: counter(sec, decimal-leading-zero); display: block; margin-bottom: 4px; font: 500 12px var(--mono); letter-spacing: .08em; color: var(--accent); }
 h3 { font-size: 16px; margin: 22px 0 8px; }
@@ -186,20 +184,31 @@ svg .edge { stroke: var(--muted); stroke-width: 1.5; fill: none; }
 .theme[aria-checked="true"] .moon { opacity: 1; transform: none; }
 .theme[aria-checked="true"] .knob { transform: translateX(24px); background: #eee9df; color: #2c3b4d; }
 /* Every state change runs through animate(kind); html.vt-<kind> names only what that change moves */
-html.vt-side .bar { view-transition-name: bar; }
-html.vt-side .sheet, html.vt-side .panel { view-transition-name: side; }
+html:is(.vt-side, .vt-side-open, .vt-side-close) :is(.sheet, .panel) { view-transition-name: side; }
+@media (min-width: 840px) { html:is(.vt-side, .vt-side-open, .vt-side-close) .bar { view-transition-name: bar; } }
+@media (max-width: 839px) { html:is(.vt-side-open, .vt-side-close) .scrim { view-transition-name: scrim; } }
 html.vt-theme .theme .knob { view-transition-name: theme-knob; }
 html.vt-question .qzone { view-transition-name: qzone; }
 html.vt-question .qcard { view-transition-name: qcard; }
 html.vt-question details.qa { view-transition-name: qlog; }
 html.vt-pop .pop { view-transition-name: pop; }
 html.vt-dialog dialog.confirm { view-transition-name: dialog; }
-/* Snapshots cannot reflow text, so outside a theme change the page itself stays live and its own transitions run */
+/* Snapshots cannot reflow text, so outside a theme change the page stays live and takes its new layout at once */
 html:not(.vt-theme)::view-transition-old(root) { display: none; }
 html:not(.vt-theme)::view-transition-new(root) { animation: none; }
-::view-transition-old(bar) { display: none; }
-::view-transition-new(bar) { animation: none; width: 100%; height: 100%; object-fit: none; object-position: right top; }
-::view-transition-group(*) { animation-duration: .4s; animation-timing-function: cubic-bezier(.05, .7, .1, 1); }
+/* The bar is the sheet's top while one is open, so it slides with it; the group stays put and each image moves itself */
+::view-transition-group(bar) { animation: none; }
+::view-transition-old(bar), ::view-transition-new(bar) { width: 100%; height: 100%; object-fit: none; object-position: right top; }
+html.vt-side:not(.vt-side-open, .vt-side-close)::view-transition-old(bar) { display: none; }
+html.vt-side:not(.vt-side-open, .vt-side-close)::view-transition-new(bar) { animation: none; }
+html.vt-side-open::view-transition-old(bar) { animation: vt-bar-leave .12s ease-out forwards; }
+html.vt-side-open::view-transition-new(bar) { animation: vt-side-in var(--vt-in); }
+html.vt-side-close::view-transition-old(bar) { animation: vt-bar-out var(--vt-out); }
+html.vt-side-close::view-transition-new(bar) { animation: vt-fade-in .2s .2s both; }
+@keyframes vt-bar-leave { from, to { transform: translate(-16px, 16px); } to { opacity: 0; } }
+@keyframes vt-bar-out { from { transform: translate(16px, -16px); } to { transform: translate(calc(var(--sheet-w) + 16px), -16px); } }
+@keyframes vt-fade-in { from { opacity: 0; } }
+::view-transition-group(*) { animation-duration: .45s; animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
 ::view-transition-group(root) { animation-timing-function: ease-in-out; }
 ::view-transition-group(qzone) { z-index: 1; overflow: clip; border-radius: 20px; }
 ::view-transition-group(qcard), ::view-transition-group(qlog) { z-index: 2; overflow: clip; border-radius: 14px; }
@@ -212,8 +221,13 @@ html:not(.vt-theme)::view-transition-new(root) { animation: none; }
 ::view-transition-new(qcard) { animation: vt-q-in .35s .1s cubic-bezier(.05, .7, .1, 1) both; }
 @keyframes vt-fade-out { to { opacity: 0; } }
 @keyframes vt-q-in { from { opacity: 0; transform: translateX(24px); } }
-::view-transition-new(side):only-child { animation: vt-side-in .4s cubic-bezier(.05, .7, .1, 1); }
-::view-transition-old(side):only-child { animation: vt-side-out .25s cubic-bezier(.3, 0, .8, .15) forwards; }
+::view-transition-old(side) { animation: vt-fade-out .1s ease-in forwards; }
+::view-transition-new(side) { animation: vt-fade-in .25s .1s both; }
+::view-transition-new(side):only-child { animation: vt-side-in var(--vt-in); }
+::view-transition-new(scrim):only-child { animation: vt-fade-in .3s ease-out; }
+::view-transition-old(scrim):only-child { animation: vt-fade-out .25s ease-in forwards; }
+::view-transition-group(scrim) { z-index: 2; }
+::view-transition-old(side):only-child { animation: vt-side-out var(--vt-out); }
 ::view-transition-new(pop):only-child, ::view-transition-new(dialog):only-child { animation: vt-pop-in .2s ease-out; }
 ::view-transition-old(pop):only-child, ::view-transition-old(dialog):only-child { animation: vt-pop-out .15s ease-in forwards; }
 @keyframes vt-side-in { from { transform: translateX(100%); } }
@@ -282,7 +296,7 @@ svg .delta > :is(rect, circle, ellipse, path, polygon) { stroke: var(--new); str
 .pop .tools button.has { border-color: var(--accent); color: var(--accent); }
 
 /* Modal side sheet (Material 3), attached to the trailing edge; the bar is its top */
-:root { --sheet-w: clamp(360px, 40vw, 640px); --bar-h: 56px; }
+:root { --sheet-w: clamp(360px, 40vw, 640px); --bar-h: 56px; --vt-in: .45s cubic-bezier(.2, 0, 0, 1); --vt-out: .28s cubic-bezier(.4, 0, 1, 1) forwards; }
 .sheet { position: fixed; top: 0; padding-top: var(--bar-h); right: 0; bottom: 0; width: var(--sheet-w); max-width: 100vw; z-index: 44; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-right: 0; border-radius: 16px 0 0 16px; overflow: hidden; box-shadow: 0 10px 36px rgba(0,0,0,.16); }
 .sheet header { display: flex; align-items: flex-start; gap: 12px; padding: 18px 16px 6px 24px; }
 .sheet .title { flex: 1; font-size: 18px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
@@ -304,11 +318,9 @@ svg .delta > :is(rect, circle, ellipse, path, polygon) { stroke: var(--new); str
 .sheet .ask .row { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--muted); }
 .sheet .ask button { font: inherit; font-size: 13px; border-radius: 8px; padding: 6px 14px; cursor: pointer; background: var(--flame); color: var(--on-flame); border: 1px solid var(--flame); font-weight: 600; }
 .sheet .ask button:disabled { opacity: .45; cursor: default; }
-body { transition: padding-right .25s cubic-bezier(.3, 0, .8, .15); }
-body.sheet-open, body:has(.panel.open) { transition: padding-right .4s cubic-bezier(.05, .7, .1, 1); }
 @media (min-width: 840px) { body.sheet-open, body:has(.panel.open) { padding-right: var(--sheet-w); } }
 @media (min-width: 840px) and (max-width: 1099px) {
-  body.sheet-open .layout, body:has(.panel.open) .layout { grid-template-columns: 0 minmax(0, 920px); gap: 0; transition-duration: .4s; transition-timing-function: cubic-bezier(.05, .7, .1, 1); }
+  body.sheet-open .layout, body:has(.panel.open) .layout { grid-template-columns: 0 minmax(0, 920px); gap: 0; }
   body.sheet-open nav.toc, body:has(.panel.open) nav.toc { opacity: 0; visibility: hidden; }
 }
 .sheet .handle, .panel .handle { display: none; justify-content: center; align-items: center; height: 48px; flex: none; cursor: grab; touch-action: none; }
@@ -381,7 +393,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 @media (prefers-reduced-motion: reduce) {
   .bar { animation: none !important; }
   .theme .knob, .theme svg { transition: none !important; }
-  body, .layout, nav.toc { transition: none !important; }
 }
 @media print { .bar, .panel, .sheet, .cbtn, .h-cbtn, nav.toc { display: none; } .layout { display: block; } }
 </style>
@@ -1062,7 +1073,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   }
 
   function openSheet(owner, tab) {
-    animate('side', () => showSheet(owner, tab));
+    animate(sideIsOpen() ? 'side' : 'side-open', () => showSheet(owner, tab));
   }
 
   function showSheet(owner, tab) {
@@ -1137,8 +1148,10 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     closeSheet();
   }
 
+  const sideIsOpen = () => Boolean(sheetOwner) || $('.panel').classList.contains('open');
+
   function closeSheet() {
-    animate('side', () => {
+    animate('side-close', () => {
       const sheet = $('.sheet');
       parkMore();
       sheet.hidden = true;
@@ -1265,7 +1278,14 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   }
 
   function togglePanel(open) {
-    animate('side', () => {
+    if (!open && !$('.panel').classList.contains('open')) {
+      return;
+    }
+    let kind = 'side-close';
+    if (open) {
+      kind = sideIsOpen() ? 'side' : 'side-open';
+    }
+    animate(kind, () => {
       if (open && sheetOwner) {
         closeSheet();
       }
