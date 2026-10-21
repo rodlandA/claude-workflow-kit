@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Explainers · {{REPO}}</title>
+<link rel="icon" href="data:,">
+<script>try { const t = localStorage.getItem("explainer:theme"); if (t) { document.documentElement.dataset.theme = t; } } catch {}</script>
+<style>
+@font-face { font-family: "Geist"; src: url("/_fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Geist Mono"; src: url("/_fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+:root {
+  color-scheme: light dark;
+  --bg: light-dark(#eee9df, #1b2632);
+  --card: light-dark(#f8f5ef, #233142);
+  --fg: light-dark(#1b2632, #eee9df);
+  --muted: light-dark(#5d6570, #a9a497);
+  --line: light-dark(#d6cebf, #34465a);
+  --accent: light-dark(#2c3b4d, #c9c1b1);
+  --accent-soft: light-dark(#dfe1e1, #2c3b4d);
+  --new: light-dark(#3d7a55, #7cc495);
+  --new-soft: light-dark(#dde8db, #1e3a2b);
+  --changed: light-dark(#b8621c, #ffb162);
+  --changed-soft: light-dark(#fce5ca, #3a2c1c);
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+main { max-width: 760px; margin: 0 auto; padding: 64px 16px; }
+h1 { margin: 0 0 4px; font-size: 28px; font-weight: 650; letter-spacing: -.025em; }
+p.sub { margin: 0 0 28px; color: var(--muted); }
+a { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; padding: 14px 16px; margin-bottom: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; color: inherit; text-decoration: none; }
+a:hover { border-color: var(--accent); }
+a b { grid-column: 1; }
+a small { grid-column: 1; color: var(--muted); font-family: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; overflow-wrap: anywhere; }
+.chips { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.chips span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; padding: 3px 8px; border-radius: 99px; white-space: nowrap; }
+.mode { background: var(--accent-soft); color: var(--accent); }
+.ok { background: var(--new-soft); color: var(--new); }
+.wait { background: var(--changed-soft); color: var(--changed); }
+.empty { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Explainers</h1>
+  <p class="sub">{{REPO}}</p>
+  {{ROWS}}
+</main>
+</body>
+</html>
