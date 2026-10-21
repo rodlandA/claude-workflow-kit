@@ -107,7 +107,17 @@ async function checkSnaps(page, w, h) {
   await dragHandle(page, -h * 0.2, 25);
   check(near(await panelHeight(page), h * 0.75), `${w}px: a slow drag settles on the nearest snap point`);
   await dragHandle(page, 0, 1);
-  check(near(await panelHeight(page), h - (w > 640 ? 56 : 72)), `${w}px: a tap on the handle moves one snap point up`);
+  const barH = await page.evaluate(() => document.querySelector('.bar').getBoundingClientRect().height);
+  check(near(await panelHeight(page), h - (w > 640 ? 56 : barH)), `${w}px: a tap on the handle moves one snap point up`);
+  if (w <= 640) {
+    const docked = await page.evaluate(() => {
+      const top = document.querySelector('.panel').getBoundingClientRect().top;
+      const bar = document.querySelector('.bar').getBoundingClientRect().bottom;
+      const close = document.querySelector('.panel .close').getBoundingClientRect();
+      return Math.abs(top - bar) <= 1 && close.width > 0 && document.elementFromPoint(close.x + 5, close.y + 5)?.closest('.panel .close') !== null;
+    });
+    check(docked, `${w}px: at the top snap point the sheet docks under the bar with a close button`);
+  }
 }
 
 async function checkWidth(browser, url, { w, h }) {
