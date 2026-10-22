@@ -72,6 +72,7 @@ Everything is commentable automatically. `example.body.html` shows a full plan.
 
 1. **Unanswered first** — `SERVE --pending` lists comments without a reply on every page of this repo. Handle the ones on your topic before anything else.
 2. **Server** — `SERVE <slug>` with Bash `run_in_background: true`. It reuses a server already running for this repo, opens the page unless a tab has it, and prints the URL; give the user `http://127.0.0.1:<port>/<slug>/`.
+   - **Another device** (the user says they are on a phone, or drives this machine remotely): ask once per session how the device reaches this machine, then add `--remote tailnet` (Tailscale), `--remote lan` (same wifi) or `--remote tunnel` (their own tunnel to the printed port). Give them the `remote:` URL: it carries a token that works like a password, and every request from outside this machine without it gets a 403. A user without a way in yet gets `docs/explaining-visually-remote.md` in the kit (Tailscale setup). A cloud session cannot serve a page at all; say so.
 3. **Watcher** — `Monitor` with `SERVE <slug> --watch`, `timeout_ms: 1800000`, description `comments on <slug>`. Name only your own pages: another session may share the folder. Events:
    - `[slug] COMMENT <id> L<line> [<section> › <element>] "<quote>" :: <text>` (`GENERAL` instead of `L…` for the whole page)
    - `[slug] EXPAND <id> L<line> [<section> › <element>] :: <question or "(no question)">` — see Expanding

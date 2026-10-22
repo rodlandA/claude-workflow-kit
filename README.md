@@ -86,6 +86,10 @@ reloads with the change outlined.
 
 <sub>Demo recording: the page, the server and the events are real; the agent's edits were written in advance and run on cue.</sub>
 
+On your phone, through Remote Control, the same loop works with `--remote`: see
+[Explainers from your phone](docs/explaining-visually-remote.md), which includes a short
+Tailscale setup.
+
 ## What is in here
 
 | Path | What |

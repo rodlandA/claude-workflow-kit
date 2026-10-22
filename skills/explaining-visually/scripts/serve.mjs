@@ -5,15 +5,17 @@
 //   node serve.mjs --pending                     print every comment that has no reply yet, then exit
 //   node serve.mjs --reply <id> "<text>"         answer a comment in its page
 //   node serve.mjs <slug> --export <out.html>    standalone copy of one page
+//   node serve.mjs <slug> --remote tailnet|lan|tunnel   also reachable from another device, behind a token
 // <slug> is a page name or a path to its .body.html. D defaults to ~/.claude/explainers/<repo dir name>.
 import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { execFile, execFileSync } from 'node:child_process';
 
 const args = process.argv.slice(2);
-const VALUED = ['--port', '--export', '--root', '--dir', '--reply'];
+const VALUED = ['--port', '--export', '--root', '--dir', '--reply', '--remote'];
 const flag = (name) => args.includes(`--${name}`);
 const option = (name, fallback) => {
   const i = args.indexOf(`--${name}`);
@@ -275,8 +277,42 @@ function pageStore() {
   return { refresh, state };
 }
 
+const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+const CGNAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+
+function lanAddress() {
+  const all = Object.values(os.networkInterfaces()).flat();
+  return all.find((a) => a.family === 'IPv4' && !a.internal && !CGNAT.test(a.address))?.address ?? null;
+}
+
+function tailnetAddress() {
+  try {
+    return execFileSync('tailscale', ['ip', '-4'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n')[0].trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+// A tunnel connects to 127.0.0.1 itself, so it needs no listener of its own: only the token.
+function remoteListenAddress(mode) {
+  const resolvers = { tailnet: tailnetAddress, lan: lanAddress, tunnel: () => null };
+  if (!resolvers[mode]) {
+    console.error(`--remote takes tailnet, lan or tunnel, not ${mode}`);
+    process.exit(2);
+  }
+  const address = resolvers[mode]();
+  if (mode !== 'tunnel' && !address) {
+    console.error(`no ${mode} address found on this machine`);
+    process.exit(2);
+  }
+  return address;
+}
+
 function serve() {
   const findCode = codeFinder();
+  const remoteMode = option('remote');
+  const remoteHost = remoteMode ? remoteListenAddress(remoteMode) : null;
+  const token = remoteMode ? crypto.randomBytes(24).toString('base64url') : null;
   const store = pageStore();
   const polledAt = {};
   let lastPoll = Date.now();
@@ -340,7 +376,7 @@ function serve() {
       return;
     }
     if (pathname === '/health') {
-      json(res, { dir, root, polledAt });
+      json(res, { dir, root, polledAt, remote: token && isLocal(req) ? { host: remoteHost, token } : null });
       return;
     }
     const font = pathname.match(/^\/_fonts\/([\w-]+\.woff2)$/)?.[1];
@@ -367,27 +403,52 @@ function serve() {
     res.end();
   };
 
-  // Only this machine's own pages may talk to the server: a foreign Host is DNS rebinding, a foreign Origin a forged comment.
+  const ownHosts = (req) => [`127.0.0.1:${req.socket.localPort}`, `localhost:${req.socket.localPort}`];
+  const isLocal = (req) => LOOPBACK.has(req.socket.remoteAddress) && ownHosts(req).includes(req.headers.host);
+  const cookieName = (req) => `explainer_${req.socket.localPort}`;
+  const tokenIn = (req) => {
+    const cookies = Object.fromEntries((req.headers.cookie ?? '').split(';').map((c) => c.trim().split('=')));
+    return cookies[cookieName(req)] ?? new URL(req.url, 'http://x').searchParams.get('t');
+  };
+  const hasToken = (req) => Boolean(token) && tokenIn(req) === token;
+
+  // Only this machine's own pages, or a device holding the --remote token, may talk to the server:
+  // a foreign Host is DNS rebinding, a foreign Origin a forged comment.
   const refusal = (req) => {
-    const port = server.address()?.port;
-    const own = [`127.0.0.1:${port}`, `localhost:${port}`];
-    if (!own.includes(req.headers.host)) {
+    const local = isLocal(req);
+    if (!local && !hasToken(req)) {
       return 'unknown host';
     }
     if (req.method !== 'POST') {
       return null;
     }
     const origin = req.headers.origin;
-    if (origin && !own.some((h) => origin === `http://${h}`)) {
+    const allowed = local ? ownHosts(req) : [req.headers.host];
+    if (origin && !allowed.some((h) => origin === `http://${h}`)) {
       return 'foreign origin';
     }
     return (req.headers['content-type'] ?? '').startsWith('application/json') ? null : 'not json';
   };
 
-  const server = http.createServer((req, res) => {
+  const enterWithToken = (req, res) => {
+    const url = new URL(req.url, 'http://x');
+    url.searchParams.delete('t');
+    res.writeHead(302, {
+      // Lax, not Strict: a link opened from another app is a cross-site navigation, and Strict drops the cookie on this very redirect.
+      'set-cookie': `${cookieName(req)}=${token}; HttpOnly; SameSite=Lax; Path=/`,
+      location: url.pathname + url.search,
+    });
+    res.end();
+  };
+
+  const handle = (req, res) => {
     const refused = refusal(req);
     if (refused) {
       json(res, { ok: false, error: refused }, 403);
+      return;
+    }
+    if (token && req.method === 'GET' && new URL(req.url, 'http://x').searchParams.get('t') === token) {
+      enterWithToken(req, res);
       return;
     }
     try {
@@ -398,12 +459,24 @@ function serve() {
         json(res, { ok: false, error: 'server error' }, 500);
       }
     }
-  });
+  };
+  const server = http.createServer(handle);
+  const remoteServer = remoteHost ? http.createServer(handle) : null;
 
-  const announce = (port, polled) => {
+  const announceRemote = (port, remote) => {
+    const page = isPage(targetSlug) ? `${targetSlug}/` : '';
+    const note = remote.host ? '' : `  (point your tunnel at 127.0.0.1:${port})`;
+    console.log(`remote: http://${remote.host ?? '127.0.0.1'}:${port}/${page}?t=${remote.token}${note}`);
+  };
+
+  const announce = (port, polled, remote) => {
     const base = `http://127.0.0.1:${port}/`;
     const url = isPage(targetSlug) ? `${base}${targetSlug}/` : base;
     console.log(`explainer: ${url}  (pages in ${dir}, code from ${root})`);
+    if (remote) {
+      announceRemote(port, remote);
+      return;
+    }
     // An already-open tab polls and reloads by itself; only open a new one if none has.
     setTimeout(() => {
       if (!polled() && !flag('no-open')) {
@@ -415,8 +488,9 @@ function serve() {
 
   const listen = async (port, attemptsLeft) => {
     const running = await probe(port);
-    if (running?.dir === dir && running.root === root) {
-      announce(port, () => Date.now() - (running.polledAt[targetSlug] ?? 0) < 10_000);
+    const sameRemote = !remoteMode || (running?.remote && running.remote.host === remoteHost);
+    if (running?.dir === dir && running.root === root && sameRemote) {
+      announce(port, () => Date.now() - (running.polledAt[targetSlug] ?? 0) < 10_000, remoteMode ? running.remote : null);
       setTimeout(() => process.exit(0), 3600);
       return;
     }
@@ -431,8 +505,13 @@ function serve() {
       }
       throw err;
     });
+    const polled = () => (isPage(targetSlug) ? Boolean(polledAt[targetSlug]) : Object.keys(polledAt).length > 0);
     server.listen(port, '127.0.0.1', () => {
-      announce(port, () => (isPage(targetSlug) ? Boolean(polledAt[targetSlug]) : Object.keys(polledAt).length > 0));
+      if (!remoteServer) {
+        announce(port, polled, token ? { host: null, token } : null);
+        return;
+      }
+      remoteServer.listen(port, remoteHost, () => announce(port, polled, { host: remoteHost, token }));
     });
   };
 
