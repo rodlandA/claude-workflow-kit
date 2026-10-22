@@ -5,8 +5,8 @@
 # PR, only you merge, and nobody rewrites the default branch.
 #
 #   main: no rewrite   blocks deletion and force-push; no bypass, not even you
-#   main: PR only      PR required, 0 approvals, squash only, linear history;
-#                      repository admins bypass, so you can still push directly
+#   main: admins only  only repository admins update the branch, by merging
+#                      a PR or pushing directly; other writers can open PRs
 #
 # Also sets squash-only merges, deletes branches on merge, requires approval
 # before workflows run on any outside contributor's PR, and turns on secret
@@ -32,27 +32,17 @@ no_rewrite='{
   "rules": [{"type": "deletion"}, {"type": "non_fast_forward"}]
 }'
 
-pr_only='{
-  "name": "main: PR only", "target": "branch", "enforcement": "active",
+admins_only='{
+  "name": "main: admins only", "target": "branch", "enforcement": "active",
   "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}],
   "conditions": {"ref_name": {"include": ["~DEFAULT_BRANCH"], "exclude": []}},
-  "rules": [
-    {"type": "required_linear_history"},
-    {"type": "pull_request", "parameters": {
-      "required_approving_review_count": 0,
-      "dismiss_stale_reviews_on_push": false,
-      "require_code_owner_review": false,
-      "require_last_push_approval": false,
-      "required_review_thread_resolution": false,
-      "allowed_merge_methods": ["squash"]
-    }}
-  ]
+  "rules": [{"type": "update", "parameters": {"update_allows_fetch_and_merge": false}}]
 }'
 
 upsert_ruleset() {
     local body="$1" name id
     name=$(jq -r .name <<<"$body")
-    id=$(gh api "repos/$repo/rulesets" --jq ".[] | select(.name == \"$name\") | .id")
+    id=$(gh api "repos/$repo/rulesets?includes_parents=false" --jq ".[] | select(.name == \"$name\") | .id")
     if [ -n "$id" ]; then
         gh api -X PUT "repos/$repo/rulesets/$id" --input - --silent <<<"$body"
         echo "updated ruleset '$name'"
@@ -63,7 +53,7 @@ upsert_ruleset() {
 }
 
 upsert_ruleset "$no_rewrite"
-upsert_ruleset "$pr_only"
+upsert_ruleset "$admins_only"
 
 gh api -X PATCH "repos/$repo" --input - --silent <<'EOF'
 {

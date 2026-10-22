@@ -33,14 +33,12 @@ protect-public-repo owner/repo       another repo
 ```
 
 It creates two rulesets on the default branch. `main: no rewrite` blocks deletion and
-force-push with no bypass. `main: PR only` requires a PR (0 approvals, squash only, linear
-history), and repository admins bypass it so you can still push directly. It also sets
-squash-only merges, deletes branches on merge, requires approval before workflows run on any
-outside contributor's PR, and turns on secret scanning with push protection. Rerunning it
-updates the rulesets by name instead of adding duplicates.
-
-The rulesets only matter once someone else has write access. Until then, being the sole
-collaborator is what keeps others from merging. Needs `gh` and `jq`.
+force-push with no bypass. `main: admins only` lets only repository admins update the branch,
+by merging a PR or pushing directly; anyone else, collaborators with write access included,
+can open a PR but not merge it. It also sets squash-only merges, deletes branches on merge,
+requires approval before workflows run on any outside contributor's PR, and turns on secret
+scanning with push protection. Rerunning it updates the rulesets by name instead of adding
+duplicates. Needs `gh` and `jq`.
 
 ## Not included, worth knowing about
 
