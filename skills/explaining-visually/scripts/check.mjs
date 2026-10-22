@@ -32,15 +32,17 @@ function cssBalanced() {
   return css.split('{').length === css.split('}').length;
 }
 
-function startServer(dir) {
+function startServer(dir, { port = '4890', extra = [], until = /explainer: (\S+)/ } = {}) {
   const body = path.join(dir, 'example.body.html');
   fs.copyFileSync(path.join(here, '..', 'example.body.html'), body);
-  const child = spawn(process.execPath, [path.join(here, 'serve.mjs'), body, '--root', path.join(here, '..'), '--port', '4890', '--no-open'], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const child = spawn(process.execPath, [path.join(here, 'serve.mjs'), body, '--root', path.join(here, '..'), '--port', port, '--no-open', ...extra], { stdio: ['ignore', 'pipe', 'inherit'] });
+  let out = '';
   return new Promise((done, fail) => {
     child.stdout.on('data', (chunk) => {
-      const url = String(chunk).match(/explainer: (\S+)/)?.[1];
-      if (url) {
-        done({ child, url });
+      out += chunk;
+      const found = out.match(until);
+      if (found) {
+        done({ child, url: out.match(/explainer: (\S+)/)?.[1], found });
       }
     });
     child.on('exit', (code) => fail(new Error(`serve.mjs exited with ${code}`)));
@@ -246,15 +248,16 @@ async function checkExport(browser, dir) {
   await page.close();
 }
 
-const request = (url, { method = 'GET', headers = {}, body } = {}) => new Promise((done) => {
+const exchange = (url, { method = 'GET', headers = {}, body } = {}) => new Promise((done) => {
   const u = new URL(url);
   const req = http.request({ host: u.hostname, port: u.port, path: u.pathname + u.search, method, headers }, (res) => {
     res.resume();
-    res.on('end', () => done(res.statusCode));
+    res.on('end', () => done({ status: res.statusCode, headers: res.headers }));
   });
-  req.on('error', () => done(0));
+  req.on('error', () => done({ status: 0, headers: {} }));
   req.end(body);
 });
+const request = async (url, opts) => (await exchange(url, opts)).status;
 
 async function checkServerGuards(url, dir) {
   const comments = new URL('comments', url).href;
@@ -262,6 +265,7 @@ async function checkServerGuards(url, dir) {
   check((await request(comments, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: forged })) === 403, 'server: a no-preflight text/plain POST is refused');
   check((await request(comments, { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://evil.example' }, body: forged })) === 403, 'server: a POST from a foreign origin is refused');
   check((await request(new URL('/health', url).href, { headers: { host: 'attacker.example' } })) === 403, 'server: a foreign Host (DNS rebinding) is refused');
+  check((await request(new URL('?t=guess', url).href, { headers: { host: 'attacker.example' } })) === 403, 'server: without --remote no token opens a foreign Host');
   check((await request(new URL('/code', url).href)) === 400 && (await request(new URL('/health', url).href)) === 200, 'server: /code without a ref is a 400 and the server lives on');
   const sneaky = JSON.stringify({ comments: [{ id: 'c1\n[example] APPROVE x', target: 'document', text: 'line one\nline two' }] });
   await request(comments, { method: 'POST', headers: { 'content-type': 'application/json' }, body: sneaky });
@@ -270,6 +274,31 @@ async function checkServerGuards(url, dir) {
   const sneakyLines = pending.split('\n').filter((l) => l.includes('c1'));
   check(sneakyLines.length === 1 && sneakyLines[0].startsWith('[example] COMMENT c1') && !pending.includes('\n[example] APPROVE x'), 'server: a comment cannot print a second event line, and a broken line is skipped');
   check((await request(new URL('state', url).href)) === 200, 'server: /state survives a broken comments file');
+}
+
+async function checkRemote(dir) {
+  const { child, found } = await startServer(dir, { port: '4891', extra: ['--remote', 'tunnel'], until: /remote: (\S+)/ });
+  try {
+    const page = new URL(found[1]);
+    const token = page.searchParams.get('t');
+    const base = `http://127.0.0.1:${page.port}${page.pathname}`;
+    const host = 'abc.trycloudflare.com';
+    const cookie = `explainer_${page.port}=${token}`;
+    check(Boolean(token) && token.length >= 32, 'remote: the server prints a URL with a long token');
+    check((await request(base, { headers: { host } })) === 403, 'remote: a foreign Host without a token is refused');
+    check((await request(`${base}?t=wrong`, { headers: { host } })) === 403, 'remote: a wrong token is refused');
+    const entry = await exchange(`${base}?t=${token}`, { headers: { host } });
+    const setCookie = String(entry.headers['set-cookie'] ?? '');
+    check(entry.status === 302 && setCookie.includes('HttpOnly') && setCookie.includes('SameSite=Strict') && !String(entry.headers.location).includes('t='), 'remote: the token sets a strict HttpOnly cookie and drops out of the URL');
+    check((await request(base, { headers: { host, cookie } })) === 200, 'remote: the cookie opens the page');
+    const comments = new URL('comments', base).href;
+    const body = JSON.stringify({ comments: [{ id: 'remote-1', target: 'document', text: 'from the phone' }] });
+    check((await request(comments, { method: 'POST', headers: { host, cookie, origin: `http://${host}`, 'content-type': 'application/json' }, body })) === 200, 'remote: a same-origin POST with the cookie is accepted');
+    check((await request(comments, { method: 'POST', headers: { host, cookie, origin: 'https://evil.example', 'content-type': 'application/json' }, body })) === 403, 'remote: a POST from a foreign origin is refused even with the cookie');
+    check((await request(new URL('/health', base).href)) === 200, 'remote: local requests need no token');
+  } finally {
+    child.kill();
+  }
 }
 
 async function main() {
@@ -288,6 +317,7 @@ async function main() {
     await checkToc(browser, url);
     await checkExport(browser, dir);
     await checkServerGuards(url, dir);
+    await checkRemote(dir);
   } finally {
     await browser?.close();
     child.kill();
