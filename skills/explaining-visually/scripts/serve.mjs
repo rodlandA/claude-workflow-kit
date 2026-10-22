@@ -434,7 +434,8 @@ function serve() {
     const url = new URL(req.url, 'http://x');
     url.searchParams.delete('t');
     res.writeHead(302, {
-      'set-cookie': `${cookieName(req)}=${token}; HttpOnly; SameSite=Strict; Path=/`,
+      // Lax, not Strict: a link opened from another app is a cross-site navigation, and Strict drops the cookie on this very redirect.
+      'set-cookie': `${cookieName(req)}=${token}; HttpOnly; SameSite=Lax; Path=/`,
       location: url.pathname + url.search,
     });
     res.end();

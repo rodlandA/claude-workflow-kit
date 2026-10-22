@@ -49,11 +49,11 @@ function startServer(dir, { port = '4890', extra = [], until = /explainer: (\S+)
   });
 }
 
-async function launch() {
+async function launch(args = []) {
   try {
-    return await chromium.launch({ channel: 'chrome' });
+    return await chromium.launch({ channel: 'chrome', args });
   } catch {
-    return chromium.launch();
+    return chromium.launch({ args });
   }
 }
 
@@ -289,13 +289,22 @@ async function checkRemote(dir) {
     check((await request(`${base}?t=wrong`, { headers: { host } })) === 403, 'remote: a wrong token is refused');
     const entry = await exchange(`${base}?t=${token}`, { headers: { host } });
     const setCookie = String(entry.headers['set-cookie'] ?? '');
-    check(entry.status === 302 && setCookie.includes('HttpOnly') && setCookie.includes('SameSite=Strict') && !String(entry.headers.location).includes('t='), 'remote: the token sets a strict HttpOnly cookie and drops out of the URL');
+    check(entry.status === 302 && setCookie.includes('HttpOnly') && setCookie.includes('SameSite=Lax') && !String(entry.headers.location).includes('t='), 'remote: the token sets a Lax HttpOnly cookie and drops out of the URL');
     check((await request(base, { headers: { host, cookie } })) === 200, 'remote: the cookie opens the page');
     const comments = new URL('comments', base).href;
     const body = JSON.stringify({ comments: [{ id: 'remote-1', target: 'document', text: 'from the phone' }] });
     check((await request(comments, { method: 'POST', headers: { host, cookie, origin: `http://${host}`, 'content-type': 'application/json' }, body })) === 200, 'remote: a same-origin POST with the cookie is accepted');
     check((await request(comments, { method: 'POST', headers: { host, cookie, origin: 'https://evil.example', 'content-type': 'application/json' }, body })) === 403, 'remote: a POST from a foreign origin is refused even with the cookie');
     check((await request(new URL('/health', base).href)) === 200, 'remote: local requests need no token');
+    const browser = await launch([`--host-resolver-rules=MAP ${host} 127.0.0.1`]);
+    try {
+      const tab = await browser.newPage();
+      await tab.setContent(`<a href="http://${host}:${page.port}${page.pathname}?t=${token}">open</a>`);
+      const [landed] = await Promise.all([tab.waitForNavigation(), tab.click('a')]);
+      check(landed?.status() === 200 && (await tab.locator('main .box').count()) > 0, 'remote: a link from another site opens the page');
+    } finally {
+      await browser.close();
+    }
   } finally {
     child.kill();
   }
