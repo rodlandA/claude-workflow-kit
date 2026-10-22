@@ -101,7 +101,7 @@ Tailscale setup.
 | `commands/` | `/commit`, `/pr`, `/review`, `/cleanup-branch` |
 | `hooks/` | Generic hooks, each configured through a Config block, plus `test-hooks.sh` |
 | `patterns/` | Project-specific hook shapes to rewrite for your stack |
-| `tools/` | `git-review`, and pointers to optional extras |
+| `tools/` | `git-review`, `protect-public-repo` (rulesets so only you merge), and pointers to optional extras |
 | `tests/adopt/` | An end-to-end test of `ADOPT.md`: a fresh agent adopts the kit into a simulated setup, then `check.sh` verifies the result |
 
 All hooks fail open: a missing tool or an unparseable payload lets the action through

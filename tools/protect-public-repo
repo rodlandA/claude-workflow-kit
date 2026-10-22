@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# protect-public-repo [<owner/repo>]
+#
+# Locks down a solo-maintained public repository: anyone can fork and open a
+# PR, only you merge, and nobody rewrites the default branch.
+#
+#   main: no rewrite   blocks deletion and force-push; no bypass, not even you
+#   main: PR only      PR required, 0 approvals, squash only, linear history;
+#                      repository admins bypass, so you can still push directly
+#
+# Also sets squash-only merges, deletes branches on merge, requires approval
+# before workflows run on any outside contributor's PR, and turns on secret
+# scanning with push protection. Safe to rerun: rulesets are matched by name.
+
+set -euo pipefail
+
+case "${1:-}" in
+    -h|--help) sed -n '2,13p' "$0" | cut -c3-; exit 0 ;;
+esac
+
+repo="${1:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}"
+
+if [ "$(gh api "repos/$repo" --jq .visibility)" != "public" ]; then
+    echo "protect-public-repo: $repo is not public" >&2
+    exit 1
+fi
+
+no_rewrite='{
+  "name": "main: no rewrite", "target": "branch", "enforcement": "active",
+  "bypass_actors": [],
+  "conditions": {"ref_name": {"include": ["~DEFAULT_BRANCH"], "exclude": []}},
+  "rules": [{"type": "deletion"}, {"type": "non_fast_forward"}]
+}'
+
+pr_only='{
+  "name": "main: PR only", "target": "branch", "enforcement": "active",
+  "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}],
+  "conditions": {"ref_name": {"include": ["~DEFAULT_BRANCH"], "exclude": []}},
+  "rules": [
+    {"type": "required_linear_history"},
+    {"type": "pull_request", "parameters": {
+      "required_approving_review_count": 0,
+      "dismiss_stale_reviews_on_push": false,
+      "require_code_owner_review": false,
+      "require_last_push_approval": false,
+      "required_review_thread_resolution": false,
+      "allowed_merge_methods": ["squash"]
+    }}
+  ]
+}'
+
+upsert_ruleset() {
+    local body="$1" name id
+    name=$(jq -r .name <<<"$body")
+    id=$(gh api "repos/$repo/rulesets" --jq ".[] | select(.name == \"$name\") | .id")
+    if [ -n "$id" ]; then
+        gh api -X PUT "repos/$repo/rulesets/$id" --input - --silent <<<"$body"
+        echo "updated ruleset '$name'"
+    else
+        gh api -X POST "repos/$repo/rulesets" --input - --silent <<<"$body"
+        echo "created ruleset '$name'"
+    fi
+}
+
+upsert_ruleset "$no_rewrite"
+upsert_ruleset "$pr_only"
+
+gh api -X PATCH "repos/$repo" --input - --silent <<'EOF'
+{
+  "allow_squash_merge": true, "allow_merge_commit": false, "allow_rebase_merge": false,
+  "delete_branch_on_merge": true,
+  "security_and_analysis": {
+    "secret_scanning": {"status": "enabled"},
+    "secret_scanning_push_protection": {"status": "enabled"}
+  }
+}
+EOF
+echo "set squash-only merges, branch deletion on merge, secret scanning"
+
+gh api -X PUT "repos/$repo/actions/permissions/fork-pr-contributor-approval" \
+    -f approval_policy=all_external_contributors --silent
+echo "required workflow approval for all outside contributors"
+
+echo
+echo "Rules now on the default branch of $repo:"
+branch=$(gh api "repos/$repo" --jq .default_branch)
+gh api "repos/$repo/rules/branches/$branch" --jq '.[] | "  \(.type)"'
