@@ -96,7 +96,7 @@ Tailscale setup.
 |------|------|
 | `ADOPT.md` | Instructions for the agent doing the setup |
 | `global/CLAUDE.md` | Personal working rules template |
-| `rules/` | Working and testing principles (follow the existing pattern, one mechanism, scope), commits, issues and PRs, branch workflow, comments, where instructions go |
+| `rules/` | Working and testing principles (follow the existing pattern, one mechanism, scope), commits, issues and PRs, branch workflow, comments, where instructions and agents go |
 | `skills/` | `committing`, `creating-pull-requests`, `cleaning-up-after-merge`, `code-review-rubric` (template), `explaining-visually` (plans and walkthroughs as local pages you comment on in the browser) |
 | `commands/` | `/commit`, `/pr`, `/review`, `/cleanup-branch` |
 | `hooks/` | Generic hooks, each configured through a Config block, plus `test-hooks.sh` |
