@@ -40,6 +40,20 @@ requires approval before workflows run on any outside contributor's PR, and turn
 scanning with push protection. Rerunning it updates the rulesets by name instead of adding
 duplicates. Needs `gh` and `jq`.
 
+## `package-skill`
+
+Zips a skill as committed, for uploading to a skill marketplace.
+
+```
+package-skill skills/explaining-visually         ./explaining-visually.zip
+package-skill skills/foo -o ~/Downloads/foo.zip  another output path
+```
+
+Only files tracked at `HEAD` go in, under a `<skill-name>/` folder, so local edits and ignored
+files such as `node_modules` never ship. It refuses while the skill has uncommitted changes,
+and prints the last commit that touched the skill: note it with the upload, and
+`git log <that commit>..HEAD -- skills/<name>` later shows whether the listing is stale.
+
 ## Not included, worth knowing about
 
 - **A sound when the agent waits for you** — the `Notification` and `PermissionRequest`
