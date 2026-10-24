@@ -1,7 +1,13 @@
 {
   "private": true,
   "type": "module",
-  "description": "Only check.mjs needs this; serve.mjs has no dependencies.",
+  "version": "1.1.0",
+  "description": "version and repository drive the update check in serve.mjs; only check.mjs needs the dependencies.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rodlandA/claude-workflow-kit",
+    "directory": "skills/explaining-visually"
+  },
   "dependencies": {
     "playwright-core": "1.63.0"
   }

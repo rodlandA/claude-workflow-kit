@@ -6,13 +6,15 @@
 //   node serve.mjs --reply <id> "<text>"         answer a comment in its page
 //   node serve.mjs <slug> --export <out.html>    standalone copy of one page
 //   node serve.mjs <slug> --remote tailnet|lan|tunnel   also reachable from another device, behind a token
+//   node serve.mjs ... --no-update-check        never ask GitHub for a newer version of this skill
 // <slug> is a page name or a path to its .body.html. D defaults to ~/.claude/explainers/<repo dir name>.
 import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { execFile, execFileSync } from 'node:child_process';
+import { execFile, execFileSync, spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
 const VALUED = ['--port', '--export', '--root', '--dir', '--reply', '--remote'];
@@ -25,6 +27,10 @@ const positional = args.filter((a, i) => !a.startsWith('--') && !VALUED.includes
 
 const HEARTBEAT_MS = 2000;
 const IDLE_EXIT_MS = 4 * 60 * 60 * 1000;
+const UPDATE_CHECK_MS = 60 * 60 * 1000;
+const SKILL_DIR = path.dirname(path.dirname(fs.realpathSync(fileURLToPath(import.meta.url))));
+const GITHUB_API = process.env.EXPLAINER_GITHUB_API ?? 'https://api.github.com';
+const GITHUB_RAW = process.env.EXPLAINER_GITHUB_RAW ?? 'https://raw.githubusercontent.com';
 const SLUG = /^[\w.-]+$/;
 
 const gitTop = () => {
@@ -165,7 +171,7 @@ function render(slug, body) {
 
 const escapeHtml = (s) => s.replace(/[<>&"]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[ch]);
 
-function renderIndex() {
+function renderIndex(updates) {
   const rows = slugs().map((slug) => {
     const body = fs.readFileSync(bodyOf(slug), 'utf8');
     const mode = body.match(/<h1[^>]*data-mode="([\w-]+)"/)?.[1] ?? '';
@@ -180,7 +186,14 @@ function renderIndex() {
   return fs
     .readFileSync(new URL('./index.html', import.meta.url), 'utf8')
     .replaceAll('{{REPO}}', () => escapeHtml(path.basename(dir)))
-    .replace('{{ROWS}}', () => rows.join('\n') || '<p class="empty">No explainers yet.</p>');
+    .replace('{{ROWS}}', () => rows.join('\n') || '<p class="empty">No explainers yet.</p>')
+    .replace('{{VERSION}}', () => escapeHtml(versionLine(updates)));
+}
+
+function versionLine(updates) {
+  const current = `explaining-visually ${updates.version ?? '(unknown version)'}`;
+  const latest = updates.available();
+  return latest ? `${current} · ${latest} available, update from any page` : current;
 }
 
 // Lines of the current body that did not exist in the previous version, by content.
@@ -277,6 +290,137 @@ function pageStore() {
   return { refresh, state };
 }
 
+const semver = (v) => String(v ?? '').split('.').map(Number);
+
+function isNewer(candidate, current) {
+  const [a, b] = [semver(candidate), semver(current)];
+  const i = [0, 1, 2].find((n) => a[n] !== b[n]);
+  return i !== undefined && a[i] > b[i];
+}
+
+// Releases are tags named <skill>-v<x.y.z> in the repository package.json points at.
+function releaseSource() {
+  const pkg = readJson(path.join(SKILL_DIR, 'scripts', 'package.json'), {});
+  const repo = pkg.repository?.url?.match(/github\.com\/([^/]+\/[^/.]+)/)?.[1];
+  const subdir = pkg.repository?.directory;
+  if (!pkg.version || !repo || !subdir) {
+    return null;
+  }
+  return { version: pkg.version, repo, subdir, prefix: `${path.basename(subdir)}-v` };
+}
+
+async function github(url) {
+  const res = await fetch(url, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'explaining-visually' }, signal: AbortSignal.timeout(20_000) });
+  if (!res.ok) {
+    throw new Error(`${res.status} from ${new URL(url).host}`);
+  }
+  return res;
+}
+
+async function latestRelease(src) {
+  const refs = await (await github(`${GITHUB_API}/repos/${src.repo}/git/matching-refs/tags/${src.prefix}`)).json();
+  const versions = refs.map((r) => r.ref.slice(`refs/tags/${src.prefix}`.length)).filter((v) => /^\d+\.\d+\.\d+$/.test(v));
+  return versions.reduce((best, v) => (isNewer(v, best ?? '0.0.0') ? v : best), null);
+}
+
+const gitTopOf = (dir) => {
+  try {
+    return execFileSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return null;
+  }
+};
+
+// A git checkout is the user's own repo: fast-forward its default branch, never anything else.
+function pullCheckout(top) {
+  const git = (...a) => execFileSync('git', ['-C', top, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  const branch = git('branch', '--show-current');
+  const main = readDefaultBranch(git);
+  if (branch !== main) {
+    return { ok: false, error: `${top} is on ${branch || 'a detached HEAD'}: switch to ${main} and run git pull` };
+  }
+  try {
+    git('pull', '--ff-only');
+    return { ok: true };
+  } catch {
+    return { ok: false, error: `git pull --ff-only failed in ${top}: pull it yourself` };
+  }
+}
+
+function readDefaultBranch(git) {
+  try {
+    return git('symbolic-ref', '--short', 'refs/remotes/origin/HEAD').replace(/^origin\//, '');
+  } catch {
+    return 'main';
+  }
+}
+
+// Staging and the previous copy live outside ~/.claude/skills, or Claude Code would load them as skills.
+async function replaceFiles(src, tag) {
+  const base = path.join(os.homedir(), '.claude', 'explainers', '.update');
+  const staging = path.join(base, 'next');
+  const previous = path.join(base, 'previous');
+  fs.rmSync(staging, { recursive: true, force: true });
+  const tree = await (await github(`${GITHUB_API}/repos/${src.repo}/git/trees/${tag}?recursive=1`)).json();
+  const files = (tree.tree ?? []).filter((e) => e.type === 'blob' && e.path.startsWith(`${src.subdir}/`));
+  for (const file of files) {
+    const out = path.resolve(staging, file.path.slice(src.subdir.length + 1));
+    if (!out.startsWith(staging + path.sep)) {
+      throw new Error(`refusing ${file.path}`);
+    }
+    const res = await github(`${GITHUB_RAW}/${src.repo}/${tag}/${file.path}`);
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, Buffer.from(await res.arrayBuffer()));
+  }
+  if (!fs.existsSync(path.join(staging, 'SKILL.md')) || !fs.existsSync(path.join(staging, 'scripts', 'serve.mjs'))) {
+    throw new Error(`${tag} does not contain this skill`);
+  }
+  const modules = path.join(SKILL_DIR, 'scripts', 'node_modules');
+  if (fs.existsSync(modules)) {
+    fs.renameSync(modules, path.join(staging, 'scripts', 'node_modules'));
+  }
+  fs.rmSync(previous, { recursive: true, force: true });
+  fs.renameSync(SKILL_DIR, previous);
+  try {
+    fs.renameSync(staging, SKILL_DIR);
+  } catch (err) {
+    fs.renameSync(previous, SKILL_DIR);
+    throw err;
+  }
+  return { ok: true };
+}
+
+function updater() {
+  const src = releaseSource();
+  const off = flag('no-update-check') || process.env.EXPLAINER_NO_UPDATE_CHECK === '1' || !src;
+  let latest = null;
+  let busy = false;
+  const check = async () => {
+    try {
+      latest = await latestRelease(src);
+    } catch {
+      latest = null;
+    }
+  };
+  if (!off) {
+    check();
+    setInterval(check, UPDATE_CHECK_MS).unref();
+  }
+  const available = () => (latest && src && isNewer(latest, src.version) ? latest : null);
+  const install = async () => {
+    if (!available() || busy) {
+      return { ok: false, error: 'no update to install' };
+    }
+    busy = true;
+    const top = gitTopOf(SKILL_DIR);
+    const attempt = async () => (top ? pullCheckout(top) : replaceFiles(src, `${src.prefix}${latest}`));
+    const result = await attempt().catch((err) => ({ ok: false, error: err.message }));
+    busy = result.ok;
+    return result;
+  };
+  return { version: src?.version ?? null, available, install };
+}
+
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const CGNAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
 
@@ -312,8 +456,9 @@ function serve() {
   const findCode = codeFinder();
   const remoteMode = option('remote');
   const remoteHost = remoteMode ? remoteListenAddress(remoteMode) : null;
-  const token = remoteMode ? crypto.randomBytes(24).toString('base64url') : null;
+  const token = remoteMode ? process.env.EXPLAINER_TOKEN || crypto.randomBytes(24).toString('base64url') : null;
   const store = pageStore();
+  const updates = updater();
   const polledAt = {};
   let lastPoll = Date.now();
 
@@ -358,7 +503,8 @@ function serve() {
     if (rest === '/state' && req.method === 'GET') {
       lastPoll = Date.now();
       polledAt[slug] = lastPoll;
-      json(res, store.state(slug, new URL(req.url, 'http://x').searchParams.get('since')));
+      const since = new URL(req.url, 'http://x').searchParams.get('since');
+      json(res, { ...store.state(slug, since), version: updates.version, update: updates.available(), canUpdate: isLocal(req) });
       return;
     }
     if (rest === '/comments' && req.method === 'POST') {
@@ -372,11 +518,15 @@ function serve() {
   const route = (req, res) => {
     const { pathname, searchParams } = new URL(req.url, 'http://x');
     if (pathname === '/') {
-      html(res, renderIndex());
+      html(res, renderIndex(updates));
       return;
     }
     if (pathname === '/health') {
-      json(res, { dir, root, polledAt, remote: token && isLocal(req) ? { host: remoteHost, token } : null });
+      json(res, { dir, root, polledAt, pid: process.pid, remote: token && isLocal(req) ? { host: remoteHost, token } : null });
+      return;
+    }
+    if (pathname === '/_update' && req.method === 'POST') {
+      installUpdate(req, res);
       return;
     }
     const font = pathname.match(/^\/_fonts\/([\w-]+\.woff2)$/)?.[1];
@@ -462,6 +612,37 @@ function serve() {
   };
   const server = http.createServer(handle);
   const remoteServer = remoteHost ? http.createServer(handle) : null;
+
+  // The running process still holds the old code, so it hands its port and token to a fresh one.
+  const restart = () => {
+    const servers = [server, remoteServer].filter(Boolean);
+    let open = servers.length;
+    const relaunch = () => {
+      open -= 1;
+      if (open > 0) {
+        return;
+      }
+      const again = [...args.filter((a) => a !== '--no-open'), '--no-open'];
+      spawn(process.execPath, [process.argv[1], ...again], { detached: true, stdio: 'ignore', env: { ...process.env, EXPLAINER_TOKEN: token ?? '' } }).unref();
+      process.exit(0);
+    };
+    servers.forEach((s) => {
+      s.close(relaunch);
+      s.closeAllConnections();
+    });
+  };
+
+  const installUpdate = async (req, res) => {
+    if (!isLocal(req)) {
+      json(res, { ok: false, error: 'update from the computer that runs the server' }, 403);
+      return;
+    }
+    const result = await updates.install();
+    if (result.ok) {
+      res.on('finish', restart);
+    }
+    json(res, result);
+  };
 
   const announceRemote = (port, remote) => {
     const page = isPage(targetSlug) ? `${targetSlug}/` : '';

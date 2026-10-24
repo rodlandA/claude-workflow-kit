@@ -111,9 +111,15 @@ Plan pages have an "Approve plan" button; `APPROVE` means the user approved the 
 
 It approves the plan, nothing more: commits and pushes follow the user's own rules. Any later edit to the body voids it.
 
+## Updates
+
+The server checks GitHub hourly for a newer release. The index page and the status pill's tooltip show the installed version; when a newer one exists, the page shows an Update button, usable only on this machine. A copied install is replaced (the old one kept in `~/.claude/explainers/.update/previous`); a git checkout is fast-forwarded, and only on its default branch. The server then restarts on the same port and the page reloads. `--no-update-check` or `EXPLAINER_NO_UPDATE_CHECK=1` turns the check off.
+
 ## Changing the shell or server
 
 After editing `scripts/shell.html` or `scripts/serve.mjs`, run `node ~/.claude/skills/explaining-visually/scripts/check.mjs` (once: `npm --prefix ~/.claude/skills/explaining-visually/scripts install`). It must end with `all passed`.
+
+To release, bump `version` in `scripts/package.json`, merge, then tag the merge commit `explaining-visually-v<version>` and push the tag.
 
 ## Common mistakes
 

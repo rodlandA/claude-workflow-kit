@@ -40,6 +40,7 @@ a small { grid-column: 1; color: var(--muted); font-family: "Geist Mono", ui-mon
 .ok { background: var(--new-soft); color: var(--new); }
 .wait { background: var(--changed-soft); color: var(--changed); }
 .empty { color: var(--muted); }
+p.version { margin: 28px 0 0; color: var(--muted); font-family: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -47,6 +48,7 @@ a small { grid-column: 1; color: var(--muted); font-family: "Geist Mono", ui-mon
   <h1>Explainers</h1>
   <p class="sub">{{REPO}}</p>
   {{ROWS}}
+  <p class="version">{{VERSION}}</p>
 </main>
 </body>
 </html>
