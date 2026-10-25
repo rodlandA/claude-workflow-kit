@@ -457,6 +457,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   <button id="changes" class="changes" title="Jump to the next change" hidden></button>
   <button id="clear-changes" class="changes" title="Mark changes as seen" hidden>&#x2715;</button>
   <button id="reload" class="reload" hidden>New version · reload</button>
+  <button id="update" class="reload" hidden></button>
   <div class="actions">
     <button id="list">Comments</button>
     <button id="send" class="send" disabled>Send batch</button>
@@ -520,6 +521,8 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   let firstPoll = true;
   let pendingReload = false;
   let seenReplies = null;
+  let installing = false;
+  let skillVersion = null;
   const SEEN_KEY = `${KEY}:seen`;
   const BASE_TITLE = document.title;
   const DOT = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%233d7a55'/%3E%3C/svg%3E";
@@ -1654,7 +1657,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     const el = $('#status');
     el.className = `status ${kind}`;
     el.dataset.kind = kind;
-    el.title = STATUS[kind].hint;
+    el.title = skillVersion ? `${STATUS[kind].hint}\nexplaining-visually ${skillVersion}` : STATUS[kind].hint;
     el.firstElementChild.textContent = STATUS[kind].label;
   }
 
@@ -1691,10 +1694,58 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     }
   }
 
+  function showUpdate(state) {
+    if (installing) {
+      return;
+    }
+    const button = $('#update');
+    button.hidden = !state.update;
+    button.disabled = !state.canUpdate;
+    button.textContent = `v${state.update} available · Update`;
+    button.title = state.canUpdate ? `You have v${state.version}` : 'Update from the computer that runs the server';
+  }
+
+  const pause = (ms) => new Promise((done) => setTimeout(done, ms));
+
+  async function serverBack() {
+    for (let i = 0; i < 40; i++) {
+      await pause(500);
+      try {
+        if ((await fetch('/health', { cache: 'no-store' })).ok) {
+          return;
+        }
+      } catch {}
+    }
+  }
+
+  async function installUpdate() {
+    const button = $('#update');
+    installing = true;
+    button.disabled = true;
+    button.textContent = 'Updating…';
+    try {
+      const res = await fetch('/_update', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      const result = await res.json();
+      if (!result.ok) {
+        throw new Error(result.error);
+      }
+      button.textContent = 'Updated · restarting…';
+      await pause(1000);
+      await serverBack();
+      reloadKeepingScroll();
+    } catch (err) {
+      button.disabled = false;
+      button.textContent = 'Update failed · retry';
+      button.title = err.message;
+    }
+  }
+
   async function poll() {
     try {
       const state = await (await fetch(`state?since=${encodeURIComponent(since)}`, { cache: 'no-store' })).json();
+      skillVersion = state.version;
       showStatus(state.listening ? 'listening' : 'idle');
+      showUpdate(state);
       if (state.v !== version) {
         pendingReload = true;
         $('#reload').hidden = false;
@@ -1832,6 +1883,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     approve();
   };
   $('#reload').onclick = reloadKeepingScroll;
+  $('#update').onclick = installUpdate;
   addEventListener('resize', positionPins);
   new ResizeObserver(([entry]) => {
     document.documentElement.style.setProperty('--bar-h', `${Math.ceil(entry.borderBoxSize[0].blockSize)}px`);
