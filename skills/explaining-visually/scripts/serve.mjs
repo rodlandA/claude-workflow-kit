@@ -615,6 +615,7 @@ function serve() {
 
   // The running process still holds the old code, so it hands its port and token to a fresh one.
   const restart = () => {
+    const port = String(server.address().port);
     const servers = [server, remoteServer].filter(Boolean);
     let open = servers.length;
     const relaunch = () => {
@@ -622,7 +623,8 @@ function serve() {
       if (open > 0) {
         return;
       }
-      const again = [...args.filter((a) => a !== '--no-open'), '--no-open'];
+      const kept = args.filter((a, i) => a !== '--no-open' && a !== '--port' && args[i - 1] !== '--port');
+      const again = [...kept, '--port', port, '--no-open'];
       spawn(process.execPath, [process.argv[1], ...again], { detached: true, stdio: 'ignore', env: { ...process.env, EXPLAINER_TOKEN: token ?? '' } }).unref();
       process.exit(0);
     };
@@ -679,21 +681,24 @@ function serve() {
       listen(port + 1, attemptsLeft - 1);
       return;
     }
-    server.once('error', (err) => {
-      if (err.code === 'EADDRINUSE' && attemptsLeft > 0) {
-        listen(port + 1, attemptsLeft - 1);
-        return;
-      }
-      throw err;
-    });
     const polled = () => (isPage(targetSlug) ? Boolean(polledAt[targetSlug]) : Object.keys(polledAt).length > 0);
-    server.listen(port, '127.0.0.1', () => {
+    const onListening = () => {
       if (!remoteServer) {
         announce(port, polled, token ? { host: null, token } : null);
         return;
       }
       remoteServer.listen(port, remoteHost, () => announce(port, polled, { host: remoteHost, token }));
+    };
+    server.once('error', (err) => {
+      if (err.code === 'EADDRINUSE' && attemptsLeft > 0) {
+        // A failed listen keeps its callback registered, and it would announce the busy port too.
+        server.off('listening', onListening);
+        listen(port + 1, attemptsLeft - 1);
+        return;
+      }
+      throw err;
     });
+    server.listen(port, '127.0.0.1', onListening);
   };
 
   setInterval(() => {

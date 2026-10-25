@@ -361,9 +361,13 @@ async function checkUpdate(browser, dir) {
   const github = await fakeGithub(path.join(here, '..'));
   const fake = `http://127.0.0.1:${github.address().port}`;
   const env = { HOME: home, EXPLAINER_GITHUB_API: fake, EXPLAINER_GITHUB_RAW: fake };
+  const blocker = http.createServer((req, res) => res.end('busy'));
+  await new Promise((done) => blocker.listen(4893, '127.0.0.1', done));
   const { child, url } = await startServer(dir, { port: '4893', scripts: path.join(skill, 'scripts'), env });
+  await new Promise((done) => blocker.close(done));
   let restarted = null;
   try {
+    check(new URL(url).port === '4894', 'update: with 4893 taken the server moved to 4894, and 4893 is free again before the update');
     const stateUrl = new URL('state', url).href;
     const before = await waitFor(async () => {
       const s = await (await fetch(stateUrl)).json();
