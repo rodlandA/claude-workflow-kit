@@ -364,6 +364,12 @@ const boxOf = (page, sel) => page.evaluate((s) => {
   const r = document.querySelector(s)?.getBoundingClientRect();
   return r ? { left: r.left, right: r.right, top: r.top, bottom: r.bottom } : null;
 }, sel);
+async function linkedTo(page, key) {
+  await page.locator(`.margin .thread[data-key="${key}"]`).hover();
+  await page.waitForTimeout(100);
+  return page.evaluate(() => [...document.querySelectorAll('main .linked')].map((el) => el.dataset.ct));
+}
+
 const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
 async function checkMarginReply(browser, url, dir) {
@@ -414,12 +420,13 @@ async function checkMarginLayout(browser, url, dir) {
   const plain = cards.filter((c) => !c.general);
   const general = cards.find((c) => c.general);
   check(plain.length === 3 && plain.every((a, i) => plain.every((b, j) => i === j || !overlaps(a, b))), 'margin: threads on adjacent elements never overlap');
-  const ties = await page.evaluate(() => [...document.querySelectorAll('.margin .tie')].map((p) => {
-    const anchor = [...document.querySelectorAll('[data-ct]')].find((el) => el.dataset.ct === p.dataset.key);
-    return { gap: Math.abs(p.getBoundingClientRect().left - anchor.getBoundingClientRect().right), key: p.dataset.key };
-  }));
-  check(ties.length === 3 && ties.every((x) => x.gap <= 4), 'margin: each tie starts at its own element');
-  check(Boolean(general) && plain.every((c) => general.top <= c.top && general.left > c.left) && !ties.some((x) => x.key === 'document'), 'margin: the general thread sits on top, offset right, with no tie');
+  check((await page.locator('.margin svg, .margin .tie').count()) === 0, 'margin: no lines are drawn between threads and their elements');
+  check(Boolean(general) && plain.every((c) => general.top <= c.top && general.left > c.left), 'margin: the general thread sits on top, offset right');
+  const lit = [];
+  for (const c of plain) {
+    lit.push((await linkedTo(page, c.key)).join('|'));
+  }
+  check(plain.every((c, i) => lit[i] === c.key), 'margin: hovering a thread lights up its own element');
   const roomy = () => page.evaluate(() => ({ margin: document.querySelector('.margin').getBoundingClientRect().width, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
   await page.locator('main .box').first().click();
   await page.waitForTimeout(700);
@@ -511,8 +518,19 @@ async function checkThreadActions(browser, url, dir) {
   check((await card().count()) === 1, 'actions: a new reply reopens a resolved thread');
   await card().locator('.msg.claude').last().click();
   await page.waitForTimeout(900);
-  check(await page.locator('.panel.open').isVisible() && await inView(page, `.panel .thread-item[data-key="${box.target}"]`), 'actions: clicking a thread opens the panel on it');
+  const boxLit = () => page.evaluate((t) => [...document.querySelectorAll('main .linked')].some((el) => el.dataset.ct === t), box.target);
+  const selected = async () => (await card().getAttribute('class')).includes('selected');
+  check(await page.locator('.panel').isHidden() && await selected() && await boxLit(), 'select: clicking a thread selects it and lights up its element, without the panel');
   check((await page.locator('main .box.flash').count()) === 1, 'actions: clicking a thread flashes the change');
+  await page.mouse.move(5, 450);
+  await page.waitForTimeout(200);
+  check(await boxLit(), 'select: the element stays lit after the pointer leaves');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  check(!(await selected()) && !(await boxLit()), 'select: Esc clears the selection');
+  await page.locator('main .box').first().click();
+  await page.waitForTimeout(500);
+  check((await page.locator('.pop').count()) === 0 && await selected(), 'select: clicking an element with a thread selects the thread instead of opening a comment');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(500);
   const step = await page.evaluate(() => {
@@ -537,7 +555,19 @@ async function checkThreadActions(browser, url, dir) {
   await badge.scrollIntoViewIfNeeded();
   await badge.click();
   await page.waitForTimeout(800);
-  check(await page.locator('.panel.open').isVisible() && (await page.locator('.panel .thread-item').count()) >= 2, '390px: a thread counter opens the panel on the thread');
+  check(await page.locator('.panel.open').isVisible() && (await page.locator('.panel .thread-item').count()) === 1 && await page.locator('.panel .general').isHidden(), '390px: a thread counter opens the panel on that thread alone');
+  await page.locator('.panel .back').click();
+  await page.waitForTimeout(300);
+  check((await page.locator('.panel .thread-item').count()) >= 2, '390px: All comments goes back to every thread');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(600);
+  await page.locator('main .box').first().click();
+  await page.waitForTimeout(800);
+  check(await page.locator('.panel.open').isVisible() && (await page.locator(`.panel .thread-item[data-key="${box.target}"]`).count()) === 1 && (await page.locator('.panel .thread-item').count()) === 1, '390px: tapping an element with a thread opens that thread');
+  await page.locator('.panel .thread-item textarea').fill('from the panel');
+  await page.locator('.panel .thread-item [data-a=send]').click();
+  await page.waitForTimeout(700);
+  check(pendingLines(dir).includes(`[${box.target}] "↩ Tightened." :: from the panel`), '390px: a reply typed in the panel continues the thread');
   await page.close();
   resetPage(dir);
 }
@@ -576,11 +606,8 @@ async function checkOffscreen(browser, url, dir) {
   });
   await postComments(url, [{ id: 'aside1', ...inner, text: 'more?' }]);
   await page.waitForTimeout(2600);
-  const gap = await page.evaluate((key) => {
-    const tie = [...document.querySelectorAll('.margin .tie')].find((p) => p.dataset.key === key);
-    return tie ? Math.abs(tie.getBoundingClientRect().left - document.querySelector('tr[data-c="cookie.ts"]').getBoundingClientRect().right) : null;
-  }, inner.target);
-  check(gap !== null && gap <= 4, 'margin: a comment inside an expansion sits beside the element the expansion belongs to');
+  const owner = await page.evaluate(() => document.querySelector('tr[data-c="cookie.ts"]').dataset.ct);
+  check((await linkedTo(page, inner.target)).join('|') === owner, 'margin: a comment inside an expansion sits beside the element the expansion belongs to');
   await page.close();
   resetPage(dir);
 }
@@ -619,11 +646,14 @@ async function checkExpand(browser, url, dir) {
 }
 
 async function cardBesideStep(page, key) {
+  if (!(await page.locator(`.margin .thread[data-key="${key}"]`).count())) {
+    return false;
+  }
+  await linkedTo(page, key);
   return page.evaluate((k) => {
     const card = [...document.querySelectorAll('.margin .thread')].find((el) => el.dataset.key === k);
-    const tie = [...document.querySelectorAll('.margin .tie')].find((el) => el.dataset.key === k);
     const step = document.querySelector('main .step');
-    return Boolean(card && tie) && Math.abs(card.getBoundingClientRect().top - step.getBoundingClientRect().top) < 40 && Math.abs(tie.getBoundingClientRect().left - step.getBoundingClientRect().right) <= 4;
+    return step.classList.contains('linked') && Math.abs(card.getBoundingClientRect().top - step.getBoundingClientRect().top) < 40;
   }, key);
 }
 
@@ -656,11 +686,9 @@ async function checkReviewFixes(browser, url, dir) {
   await postComments(url, [{ id: 'fx3', target: 'Steps › Login sets the cookie', line: step.line + 1, text: 'and this one?' }]);
   editBody(dir, '<h2>Steps</h2>', '<h2>Rollout steps</h2>');
   await page.waitForTimeout(2600);
-  check(await page.evaluate(() => {
-    const tie = [...document.querySelectorAll('.margin .tie')].find((el) => el.dataset.key === 'Steps › Login sets the cookie');
-    const row = document.querySelectorAll('main .step')[1];
-    return Boolean(tie) && Math.abs(tie.getBoundingClientRect().left - row.getBoundingClientRect().right) <= 4;
-  }), 'fixes: a thread stays beside its element after its section is renamed');
+  await linkedTo(page, 'Steps › Login sets the cookie');
+  check(await page.evaluate(() => document.querySelectorAll('main .step')[1].classList.contains('linked')), 'fixes: a thread stays beside its element after its section is renamed');
+  await page.mouse.move(5, 450);
   await page.locator('.qcard textarea').click();
   await page.keyboard.type('abc');
   editBody(dir, '<p class="lede">', '<p class="lede">Again. ');

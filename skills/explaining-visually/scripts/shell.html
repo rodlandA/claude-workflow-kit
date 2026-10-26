@@ -327,12 +327,9 @@ nav.toc a .loader { width: 10px; height: 10px; margin-left: 6px; vertical-align:
 
 /* Margin threads */
 .margin { position: relative; min-width: 0; padding: 96px 0 120px; }
-.margin .ties { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
-.margin .tie { fill: none; stroke: var(--line); stroke-width: 1.5; }
-.margin .tie.hot { stroke: var(--new); }
 .thread { position: absolute; left: 0; right: 24px; padding: 10px 12px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,.10); font-size: 13px; line-height: 1.45; transition: top .3s cubic-bezier(.2, .8, .2, 1), box-shadow .2s; cursor: pointer; }
 .thread.general { left: 24px; right: 0; }
-.thread.linked { outline: 0; box-shadow: 0 0 0 2px var(--note), 0 6px 20px rgba(0,0,0,.12); }
+.thread:is(.linked, .selected) { outline: 0; box-shadow: 0 0 0 2px var(--note), 0 6px 20px rgba(0,0,0,.12); }
 .thread.folded { right: auto; padding: 4px 12px; border-radius: 99px; font: 600 12px/20px var(--sans); color: var(--accent); }
 .thread.general.folded { left: 24px; }
 :is(.thread, .thread-item) .msg + .msg { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
@@ -347,15 +344,20 @@ nav.toc a .loader { width: 10px; height: 10px; margin-left: 6px; vertical-align:
 :is(.thread, .thread-item) .chip.changed { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; background: var(--accent-soft); color: var(--accent); }
 :is(.thread, .thread-item) .chip .loader { width: 10px; height: 10px; }
 :is(.thread, .thread-item) .chip.draft { background: var(--note-soft); color: var(--note); }
-.thread .msg.draft .text { opacity: .8; }
-.thread .tools { margin-top: 8px; }
+:is(.thread, .thread-item) .msg.draft .text { opacity: .8; }
+:is(.thread, .thread-item.focus) .tools { margin-top: 8px; }
 .thread .actions { position: absolute; top: -13px; right: 10px; display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 99px; background: var(--card); box-shadow: 0 2px 8px rgba(0,0,0,.10); opacity: 0; transition: opacity .15s; }
 .thread:hover .actions, .thread:focus-within .actions { opacity: 1; }
 .thread .actions button { border: 0; border-radius: 99px; padding: 2px 8px; font-size: 11.5px; background: none; }
 .thread .actions button:hover { background: var(--accent-soft); color: var(--accent); }
-.thread textarea { display: block; width: 100%; min-height: 30px; max-height: 160px; field-sizing: content; resize: none; font: inherit; font-size: 13px; border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: var(--bg); color: var(--fg); }
+:is(.thread, .thread-item.focus) textarea { display: block; width: 100%; min-height: 30px; max-height: 160px; field-sizing: content; resize: none; font: inherit; font-size: 13px; border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: var(--bg); color: var(--fg); }
 .thread .tools .row { display: none; justify-content: flex-end; gap: 6px; margin-top: 6px; }
 .thread:focus-within .tools .row, .thread .tools:has(textarea:not(:placeholder-shown)) .row { display: flex; }
+.thread-item.focus .tools .row { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+.thread-item.focus .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.thread-item.focus .actions button[data-a=fold] { display: none; }
+.panel.focused .general { display: none; }
+.panel .back { margin: 2px 0 8px; border: 0; background: none; color: var(--accent); padding: 4px 6px; }
 .panel .thread-item .t { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
 .panel .thread-item .t button { padding: 2px 10px; font-size: 12px; }
 .panel .thread-item.resolved { opacity: .75; }
@@ -533,7 +535,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   <main>
 {{BODY}}
   </main>
-  <div class="margin" aria-label="Comment threads"><svg class="ties" aria-hidden="true"></svg></div>
+  <div class="margin" aria-label="Comment threads"></div>
 </div></div>
 <aside class="panel">
   <div class="handle" title="Drag to resize or close"></div>
@@ -999,8 +1001,16 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     return item;
   }
 
+  let panelFocus = null;
+
   function renderPanel() {
     const list = $('.panel .list');
+    const focus = panelFocus && threadsOf().find((t) => t.key === panelFocus && (t.items.length || t.drafts.length));
+    $('.panel').classList.toggle('focused', Boolean(focus));
+    if (focus) {
+      renderFocusedPanel(list, focus);
+      return;
+    }
     list.innerHTML = '<h5>Unsent</h5>';
     if (!drafts.length) {
       list.insertAdjacentHTML('beforeend', '<div class="empty">Nothing waiting. "Add to batch" collects comments here.</div>');
@@ -1020,6 +1030,27 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       approvals.forEach((c) => list.appendChild(panelItem(c, 'answered')));
     }
     panelSection(list, 'Resolved', threads.filter((t) => t.resolved), 'Nothing resolved yet.');
+  }
+
+  function renderFocusedPanel(list, thread) {
+    const old = list.querySelector('.thread-item.focus');
+    const back = document.createElement('button');
+    back.className = 'back';
+    back.textContent = '← All comments';
+    back.onclick = (e) => {
+      e.stopPropagation();
+      panelFocus = null;
+      renderPanel();
+    };
+    const item = threadItem(thread);
+    item.classList.add('focus');
+    thread.drafts.forEach((c) => item.append(draftEl(c)));
+    item.append(threadTools(thread));
+    item.onclick = (e) => onPanelThreadClick(e, thread.key, item);
+    if (old) {
+      keepTyping(old, item);
+    }
+    list.replaceChildren(back, item);
   }
 
   function panelSection(list, title, threads, empty) {
@@ -2123,12 +2154,15 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   function threadTools(thread) {
     const tools = document.createElement('div');
     tools.className = 'tools';
-    tools.innerHTML = '<div class="actions"><button data-a="show">Show change</button><button data-a="fold">Fold</button><button data-a="resolve">Resolve</button></div><textarea rows="1" placeholder="Reply…"></textarea><div class="row"><button data-a="batch">Add to batch</button><button data-a="send" class="primary">Send now ⌘↵</button></div>';
+    tools.innerHTML = '<div class="actions"><button data-a="show">Show change</button><button data-a="open-info">ⓘ Info</button><button data-a="open-code">‹/› Code</button><button data-a="fold">Fold</button><button data-a="resolve">Resolve</button></div><textarea rows="1" placeholder="Reply…"></textarea><div class="row"><button data-a="batch">Add to batch</button><button data-a="send" class="primary">Send now ⌘↵</button></div>';
+    const anchor = anchorFor(thread);
     tools.querySelector('[data-a=show]').hidden = !latestReply(thread)?.reply.lines?.length;
-    tools.querySelector('[data-a=resolve]').hidden = !thread.items.length;
+    tools.querySelector('[data-a=open-info]').hidden = !anchor || !mores.has(anchor);
+    tools.querySelector('[data-a=open-code]').hidden = !anchor || !served || !refsFor(anchor).length;
+    tools.querySelector('[data-a=resolve]').hidden = !thread.items.length || thread.resolved;
     tools.querySelector('textarea').onkeydown = (e) => {
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-        replyFromCard(thread.key, true);
+        replyFrom(e.target, thread.key, true);
       }
       if (e.key === 'Escape') {
         e.stopPropagation();
@@ -2138,29 +2172,83 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     return tools;
   }
 
-  function onThreadClick(e, key) {
-    if (e.target.closest('textarea') || getSelection()?.toString()) {
-      return;
-    }
-    const thread = cards.get(key)?.thread;
-    if (foldedKeys.has(key)) {
-      setFolded(key, false);
-      return;
-    }
+  const threadByKey = (key) => threadsOf().find((t) => t.key === key);
+
+  function runThreadAction(e, key, root) {
+    const thread = threadByKey(key);
+    const reply = (now) => replyFrom(root.querySelector('.tools textarea'), key, now);
     const actions = {
       earlier: () => { expandedKeys.add(key); renderMargin(); },
       show: () => showChange(thread),
+      'open-info': () => openSheet(anchorFor(thread), 'info'),
+      'open-code': () => openSheet(anchorFor(thread), 'code'),
       fold: () => setFolded(key, true),
       resolve: () => resolveThread(key, true),
-      send: () => replyFromCard(key, true),
-      batch: () => replyFromCard(key, false),
+      send: () => reply(true),
+      batch: () => reply(false),
     };
     const action = actions[e.target.closest('[data-a]')?.dataset.a];
     if (action) {
       action();
-    } else if (e.target.closest('.msg')) {
-      openThreadInPanel(thread);
     }
+    return Boolean(action);
+  }
+
+  function onThreadClick(e, key) {
+    if (e.target.closest('textarea') || getSelection()?.toString()) {
+      return;
+    }
+    if (foldedKeys.has(key)) {
+      setFolded(key, false);
+      return;
+    }
+    if (!runThreadAction(e, key, cards.get(key).el)) {
+      selectThread(threadByKey(key));
+    }
+  }
+
+  function onPanelThreadClick(e, key, item) {
+    if (e.target.closest('textarea') || getSelection()?.toString()) {
+      return;
+    }
+    if (!runThreadAction(e, key, item)) {
+      flashChange(threadByKey(key));
+    }
+  }
+
+  let selectedKey = null;
+
+  // Wide screens select the thread in the margin; without a margin, the panel shows it alone.
+  function selectThread(thread) {
+    if (!thread) {
+      return;
+    }
+    if (marginHidden() || thread.resolved) {
+      openThreadInPanel(thread);
+      return;
+    }
+    selectedKey = thread.key;
+    markSeen(thread.items.filter((c) => c.reply).map((c) => c.id));
+    expandedKeys.add(thread.key);
+    if (foldedKeys.has(thread.key)) {
+      setFolded(thread.key, false);
+    } else {
+      renderMargin();
+    }
+    flashChange(thread);
+  }
+
+  function clearSelection() {
+    if (!selectedKey) {
+      return false;
+    }
+    selectedKey = null;
+    link();
+    return true;
+  }
+
+  function threadOn(el) {
+    return threadsOf().find((t) => t.items.length && (t.key === el.dataset.ct || anchorFor(t) === el));
   }
 
   // A reply carries Claude's last answer as its quote, so the agent sees which thread it continues.
@@ -2170,15 +2258,14 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     return { ...commentFrom(anchorFor(thread), text, quote), target: thread.key };
   }
 
-  function replyFromCard(key, now) {
-    const entry = cards.get(key);
-    const ta = entry?.el.querySelector('.tools textarea');
+  function replyFrom(ta, key, now) {
+    const thread = threadByKey(key);
     const text = ta?.value.trim();
-    if (!text) {
+    if (!thread || !text) {
       return;
     }
     ta.value = '';
-    const c = threadReply(entry.thread, text);
+    const c = threadReply(thread, text);
     if (now) {
       post([c]);
       return;
@@ -2252,12 +2339,9 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     }
     markSeen(thread.items.filter((c) => c.reply).map((c) => c.id));
     flashChange(thread);
-    togglePanel(true).then(() => {
-      const item = [...document.querySelectorAll('.panel .thread-item')].find((el) => el.dataset.key === thread.key);
-      item?.scrollIntoView({ block: 'nearest' });
-      item?.classList.add('flash');
-      setTimeout(() => item?.classList.remove('flash'), 1200);
-    });
+    panelFocus = thread.key;
+    renderPanel();
+    togglePanel(true);
   }
 
   const SEEN_AFTER_MS = 1500;
@@ -2459,42 +2543,25 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     placed.forEach((p, i) => {
       p.entry.el.style.top = `${tops[i]}px`;
     });
-    drawTies(placed, tops, base);
     anchors = new Map(placed.filter((p) => p.anchor).map((p) => [p.entry.thread.key, p.anchor]));
-  }
-
-  function drawTies(placed, tops, base) {
-    const svg = $('.margin .ties');
-    svg.textContent = '';
-    placed.forEach((p, i) => {
-      if (!p.anchor) {
-        return;
-      }
-      const r = p.anchor.getBoundingClientRect();
-      const ax = r.right - base.left + 2;
-      const ay = Math.min(r.top - base.top + 14, r.bottom - base.top - 4);
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('class', 'tie');
-      path.setAttribute('d', `M${ax} ${ay} H-14 L0 ${tops[i] + 16}`);
-      path.dataset.key = p.entry.thread.key;
-      svg.append(path);
-    });
+    link();
   }
 
   let linked = [];
+  let hoverKey = null;
 
-  function link(key) {
-    linked.forEach((el) => el.classList.remove('linked', 'hot'));
-    const tie = key && [...document.querySelectorAll('.margin .tie')].find((p) => p.dataset.key === key);
-    linked = key ? [cards.get(key)?.el, anchors.get(key), tie].filter(Boolean) : [];
-    linked.forEach((el) => el.classList.add(el === tie ? 'hot' : 'linked'));
+  function link() {
+    linked.forEach((el) => el.classList.remove('linked'));
+    linked = [...new Set([hoverKey, selectedKey])].filter(Boolean).flatMap((key) => [cards.get(key)?.el, anchors.get(key)]).filter(Boolean);
+    linked.forEach((el) => el.classList.add('linked'));
+    cards.forEach(({ el }, key) => el.classList.toggle('selected', key === selectedKey));
   }
 
   function linkFromHover(e) {
     const card = e.target.closest('.margin .thread');
     const el = card ? null : e.target.closest('[data-ct]');
-    const key = card?.dataset.key ?? [...anchors].find(([, a]) => a === el)?.[0] ?? null;
-    link(key);
+    hoverKey = card?.dataset.key ?? [...anchors].find(([, a]) => a === el)?.[0] ?? null;
+    link();
   }
 
   const STATUS = {
@@ -2641,10 +2708,17 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       showRefInSheet(ref);
       return;
     }
-    if (e.target.closest('.bar, .panel, .pop, nav, .cbtn, .h-cbtn, a, button, dialog, .sheet .ask, .qzone, .margin')) {
+    // A thread card or panel item rebuilt by its own click handler has left the document.
+    if (!e.target.isConnected || e.target.closest('.bar, .panel, .pop, nav, .cbtn, .h-cbtn, a, button, dialog, .sheet .ask, .qzone, .margin')) {
       return;
     }
     const el = e.target.closest('[data-ct]');
+    const thread = el && threadOn(el);
+    if (thread) {
+      selectThread(thread);
+      return;
+    }
+    clearSelection();
     if (el) {
       commentOn(el);
     } else if (openPopEl() && !openPopEl().matches('.general')) {
@@ -2681,6 +2755,8 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       closeSheet();
     } else if ($('.panel').classList.contains('open')) {
       togglePanel(false);
+    } else {
+      clearSelection();
     }
   });
 
@@ -2692,6 +2768,8 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       togglePanel(false);
       return;
     }
+    panelFocus = null;
+    renderPanel();
     togglePanel(true).then(revealUnseenInPanel);
   };
   $('#status').onclick = showStatusHelp;
