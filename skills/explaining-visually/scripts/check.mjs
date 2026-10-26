@@ -276,6 +276,50 @@ async function checkServerGuards(url, dir) {
   check((await request(new URL('state', url).href)) === 200, 'server: /state survives a broken comments file');
 }
 
+const SIDECARS = ['comments.jsonl', 'replies.json', 'resolved.json', 'replied.html', 'cursor'];
+
+function resetPage(dir) {
+  SIDECARS.forEach((ext) => fs.rmSync(path.join(dir, `example.${ext}`), { force: true }));
+  fs.copyFileSync(path.join(here, '..', 'example.body.html'), path.join(dir, 'example.body.html'));
+}
+
+let bodyClock = 0;
+
+// Two edits within one millisecond would share an mtime, and the mtime is the page version.
+function editBody(dir, from, to) {
+  const file = path.join(dir, 'example.body.html');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(from, to));
+  bodyClock += 1;
+  const t = Date.now() / 1000 + bodyClock;
+  fs.utimesSync(file, t, t);
+}
+
+const replyTo = (dir, id, text) => execFileSync(process.execPath, [path.join(here, 'serve.mjs'), '--reply', id, text, '--dir', dir], { encoding: 'utf8' });
+const postComments = (url, comments) => request(new URL('comments', url).href, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ comments }) });
+const state = async (url) => (await fetch(new URL('state', url))).json();
+const postResolve = (url, body, headers = {}) => request(new URL('resolve', url).href, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+
+async function checkServerThreads(url, dir) {
+  resetPage(dir);
+  const target = 'Steps › Add cookie middleware beside bearer auth';
+  await postComments(url, [{ id: 'ta', target, line: 60, text: 'a' }, { id: 'tb', target, line: 60, text: 'b' }]);
+  editBody(dir, 'Add cookie middleware beside bearer auth', 'Add the cookie middleware beside bearer auth');
+  replyTo(dir, 'ta', 'renamed');
+  replyTo(dir, 'tb', 'nothing more');
+  let s = await state(url);
+  const ra = s.sent.find((c) => c.id === 'ta').reply;
+  check(ra.lines?.length > 0 && !('changed' in s), 'threads: a reply owns the lines changed since the previous reply');
+  check(s.sent.find((c) => c.id === 'tb').reply.lines?.length === 0, 'threads: a reply after no edit owns no lines');
+  editBody(dir, '<h1', '<!-- shift -->\n<h1');
+  s = await state(url);
+  check(Boolean(ra.lines) && s.sent.find((c) => c.id === 'ta').reply.lines[0] === ra.lines[0] + 1, 'threads: owned lines follow the body when lines above move');
+  check((await postResolve(url, { target, resolved: true })) === 200, 'threads: resolve accepts a target');
+  check(Boolean((await state(url)).resolved?.[target]), 'threads: state lists resolved targets');
+  check((await postResolve(url, { target, resolved: false })) === 200 && !(await state(url)).resolved?.[target], 'threads: a resolved target can be reopened');
+  check((await postResolve(url, {}, { origin: 'http://evil.example' })) === 403, 'threads: resolve refuses a foreign origin');
+  resetPage(dir);
+}
+
 async function checkRemote(dir) {
   const { child, found } = await startServer(dir, { port: '4891', extra: ['--remote', 'tunnel'], until: /remote: (\S+)/ });
   try {
@@ -422,6 +466,7 @@ async function main() {
     await checkToc(browser, url);
     await checkExport(browser, dir);
     await checkServerGuards(url, dir);
+    await checkServerThreads(url, dir);
     await checkRemote(dir);
     await checkUpdate(browser, dir);
   } finally {

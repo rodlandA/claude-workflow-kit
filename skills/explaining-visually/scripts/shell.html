@@ -1754,7 +1754,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       }
       if (firstPoll) {
         firstPoll = false;
-        markDeltas(state.changed);
+        markDeltas(state.changed ?? []);
       }
       const replies = state.sent.filter((c) => c.reply).length;
       if (seenReplies !== null && replies > seenReplies && !$('.panel').classList.contains('open')) {
