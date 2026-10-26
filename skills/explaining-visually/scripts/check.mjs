@@ -320,6 +320,38 @@ async function checkServerThreads(url, dir) {
   resetPage(dir);
 }
 
+async function checkLiveUpdate(browser, url, dir) {
+  resetPage(dir);
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => { window.alive = true; });
+  await page.locator('.qcard .opt').nth(1).click();
+  editBody(dir, '<p class="lede">', '<p class="lede">Edited. ');
+  await page.waitForTimeout(3000);
+  check(await page.evaluate(() => window.alive === true), 'live: a body change does not reload the page');
+  check((await page.locator('.qcard .opt.on').count()) === 1, 'live: a selected but unsent answer survives a body change');
+  check((await page.locator('main .lede').textContent()).startsWith('Edited.'), 'live: the changed element is swapped in');
+  await page.locator('main .box').first().click();
+  await page.locator('.pop textarea').fill('half typed');
+  editBody(dir, '<b>Login form</b>', '<b>Login form</b> ');
+  await page.waitForTimeout(3000);
+  check((await page.locator('.pop textarea').inputValue()) === 'half typed', 'live: text in an open comment survives a body change');
+  await page.keyboard.press('Escape');
+  await page.locator('tr[data-c="cookie.ts"]').click();
+  await page.waitForTimeout(400);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(700);
+  editBody(dir, 'so routes need no change.</p>', 'so routes need no change.</p><p>More detail.</p>');
+  await page.waitForTimeout(3000);
+  const sheet = await page.evaluate(() => ({ open: !document.querySelector('.sheet').hidden, text: document.querySelector('.sheet-body').textContent }));
+  check(sheet.open && sheet.text.includes('More detail.'), 'live: an open Info sheet shows the extended aside');
+  check(await page.evaluate(() => document.querySelectorAll('aside.more').length === 1), 'live: the replaced aside leaves no stale copy behind');
+  check(await page.evaluate(() => window.alive === true), 'live: the page is still the same page after several changes');
+  await page.close();
+  resetPage(dir);
+}
+
 async function checkRemote(dir) {
   const { child, found } = await startServer(dir, { port: '4891', extra: ['--remote', 'tunnel'], until: /remote: (\S+)/ });
   try {
@@ -467,6 +499,7 @@ async function main() {
     await checkExport(browser, dir);
     await checkServerGuards(url, dir);
     await checkServerThreads(url, dir);
+    await checkLiveUpdate(browser, url, dir);
     await checkRemote(dir);
     await checkUpdate(browser, dir);
   } finally {

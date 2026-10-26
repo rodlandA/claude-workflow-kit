@@ -199,7 +199,6 @@ html:is(.vt-side, .vt-side-open, .vt-side-close, .vt-snap) :is(.sheet, .panel) {
   html:is(.vt-side-open, .vt-side-close) #theme { view-transition-name: bar-theme; }
   html:is(.vt-side-open, .vt-side-close) #changes { view-transition-name: bar-changes; }
   html:is(.vt-side-open, .vt-side-close) #clear-changes { view-transition-name: bar-clear; }
-  html:is(.vt-side-open, .vt-side-close) #reload { view-transition-name: bar-reload; }
   html:is(.vt-side-open, .vt-side-close) #list { view-transition-name: bar-list; }
   html:is(.vt-side-open, .vt-side-close) #send { view-transition-name: bar-send; }
   html:is(.vt-side-open, .vt-side-close) #approve { view-transition-name: bar-approve; }
@@ -456,7 +455,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   <span class="loader" id="general-loader" title="The agent is working on a general comment" hidden></span>
   <button id="changes" class="changes" title="Jump to the next change" hidden></button>
   <button id="clear-changes" class="changes" title="Mark changes as seen" hidden>&#x2715;</button>
-  <button id="reload" class="reload" hidden>New version · reload</button>
   <button id="update" class="reload" hidden></button>
   <div class="actions">
     <button id="list">Comments</button>
@@ -501,6 +499,10 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 <button class="cbtn" title="Comment"></button>
 <script>
 (() => {
+  // Captured before any script touches main: later versions of the body are compared against it.
+  let pristine = document.createElement('template');
+  pristine.innerHTML = document.querySelector('main').innerHTML;
+  let liveOf = [...document.querySelector('main').children];
   const DOC = '{{DOC}}';
   const KEY = `explainer:${DOC}`;
   const SCROLL_KEY = `${KEY}:scroll`;
@@ -517,9 +519,9 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   let drafts = [];
   let sent = [];
-  let version = RENDERED;
+  let bodyVersion = RENDERED;
   let firstPoll = true;
-  let pendingReload = false;
+  let bodyBusy = false;
   let seenReplies = null;
   let installing = false;
   let skillVersion = null;
@@ -549,7 +551,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   let sheetRefs = null;
   let sheetWaiting = null;
   const mores = new Map();
-  const questions = [...document.querySelectorAll('main .q[id]')];
+  let questions = [...document.querySelectorAll('main .q[id]')];
   const skipped = new Set();
   let reopened = null;
   let shownQuestion;
@@ -590,7 +592,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   }
 
   function addSectionButtons() {
-    document.querySelectorAll('main section > h2[data-ct]').forEach((h) => {
+    document.querySelectorAll('main section > h2[data-ct]:not(:has(.h-cbtn))').forEach((h) => {
       const b = document.createElement('button');
       b.className = 'h-cbtn';
       b.title = 'Comment on this section';
@@ -611,7 +613,27 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   }
 
   function buildToc() {
+    buildTocLinks();
+    $('nav.toc').addEventListener('click', (e) => {
+      const a = e.target.closest('a');
+      if (a) {
+        pinTo(document.getElementById(a.hash.slice(1)));
+      }
+    });
+    addEventListener('scroll', spyToc, { passive: true });
+    addEventListener('resize', spyToc);
+    addEventListener('wheel', unpin, { passive: true });
+    addEventListener('touchmove', unpin, { passive: true });
+    addEventListener('keydown', (e) => {
+      if (SCROLL_KEYS.includes(e.key) && !e.target.closest?.('textarea, input, [contenteditable]')) {
+        unpin();
+      }
+    });
+  }
+
+  function buildTocLinks() {
     const toc = $('nav.toc');
+    toc.textContent = '';
     if ($('.qzone')) {
       $('.qzone').id = 'questions';
       toc.appendChild(tocLink('#questions', 'Questions', '?', 'qlink')).insertAdjacentHTML('beforeend', '<span class="count"></span>');
@@ -628,21 +650,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       toc.appendChild(tocLink(`#${anchor.id}`, h.textContent.trim(), isH2 ? String(n).padStart(2, '0') : '', isH2 ? '' : 'sub'));
     });
     toc.insertAdjacentHTML('beforeend', '<div class="keys"><kbd>j</kbd> <kbd>k</kbd> section · <kbd>c</kbd> comment</div>');
-    toc.addEventListener('click', (e) => {
-      const a = e.target.closest('a');
-      if (a) {
-        pinTo(document.getElementById(a.hash.slice(1)));
-      }
-    });
-    addEventListener('scroll', spyToc, { passive: true });
-    addEventListener('resize', spyToc);
-    addEventListener('wheel', unpin, { passive: true });
-    addEventListener('touchmove', unpin, { passive: true });
-    addEventListener('keydown', (e) => {
-      if (SCROLL_KEYS.includes(e.key) && !e.target.closest?.('textarea, input, [contenteditable]')) {
-        unpin();
-      }
-    });
     spyToc();
   }
 
@@ -1032,8 +1039,9 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     }
     $('.draft-note').hidden = !open;
     const q = nextQuestion();
-    if (q !== shownQuestion) {
-      shownQuestion = q;
+    const switched = q?.id !== shownQuestion?.id;
+    shownQuestion = q;
+    if (switched) {
       animate('question', () => {
         zone.querySelector('.qcard')?.remove();
         if (q) {
@@ -1097,7 +1105,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     if (pops.length) {
       animate('pop', () => pops.forEach((p) => p.remove()));
     }
-    reloadIfPending();
   }
 
   function refsIn(el) {
@@ -1152,8 +1159,26 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   const isWaiting = (owner) => sent.some((c) => !c.reply && c.kind === 'expand' && c.target === owner.dataset.ct);
 
+  const homes = new Map();
+
+  // An aside goes back to the exact place it came from, so its section still matches the source.
   function parkMore() {
-    $('.sheet-body').querySelectorAll('aside.more').forEach((a) => $('main').appendChild(a));
+    $('.sheet-body').querySelectorAll('aside.more').forEach((a) => {
+      const home = homes.get(a);
+      homes.delete(a);
+      if (home?.isConnected) {
+        home.replaceWith(a);
+      } else {
+        $('main').appendChild(a);
+      }
+    });
+  }
+
+  function lendMore(aside, body) {
+    const home = document.createComment('aside.more');
+    aside.replaceWith(home);
+    homes.set(aside, home);
+    body.appendChild(aside);
   }
 
   function askForm(hasMore) {
@@ -1191,7 +1216,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     const aside = mores.get(sheetOwner);
     if (aside) {
       aside.querySelectorAll('code').forEach((c) => c.classList.toggle('ref', served && Boolean(c.textContent.match(REF))));
-      body.appendChild(aside);
+      lendMore(aside, body);
     }
     body.appendChild(askForm(Boolean(aside)));
   }
@@ -1328,7 +1353,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       sheetOwner = null;
       try { sessionStorage.removeItem(SHEET_KEY); } catch {}
     });
-    reloadIfPending();
   }
 
   function restoreSheet() {
@@ -1365,6 +1389,9 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   function openPop({ anchor, target, quote, text, general, tools, onSend, onBatch }) {
     const pop = document.createElement('div');
     pop.className = general ? 'pop general' : 'pop';
+    if (!general && anchor?.dataset.ct) {
+      pop.dataset.ct = anchor.dataset.ct;
+    }
     pop.innerHTML = '<div class="target"></div><q></q><div class="tools"></div><textarea></textarea><div class="row"><button data-a="cancel">Cancel</button><button data-a="batch">Add to batch</button><button data-a="send" class="primary">Send now ⌘↵</button></div>';
     pop.querySelector('.target').textContent = general ? 'General comment' : target;
     pop.querySelector('q').textContent = quote || '';
@@ -1543,7 +1570,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     ].filter(Boolean);
   }
 
-  const approvalOf = () => sent.find((c) => c.kind === 'approve' && c.version === version);
+  const approvalOf = () => sent.find((c) => c.kind === 'approve' && c.version === bodyVersion);
 
   function renderApproval() {
     const approved = approvalOf();
@@ -1556,7 +1583,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   }
 
   async function approve() {
-    await post([{ ...commentFrom(null, '', ''), kind: 'approve', version, sentAt: new Date().toISOString() }]);
+    await post([{ ...commentFrom(null, '', ''), kind: 'approve', version: bodyVersion, sentAt: new Date().toISOString() }]);
   }
 
   function requestApproval() {
@@ -1596,6 +1623,133 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
         scrollTo(0, Number(y));
       }
     } catch {}
+  }
+
+  async function fetchMain() {
+    const html = await (await fetch('./', { cache: 'no-store' })).text();
+    return new DOMParser().parseFromString(html, 'text/html').querySelector('main');
+  }
+
+  const sourceOf = (el) => el.outerHTML.replace(/ data-line="\d+"/g, '');
+
+  function lineMap(before, after) {
+    const news = [after, ...after.querySelectorAll('[data-line]')];
+    return new Map([before, ...before.querySelectorAll('[data-line]')].map((el, i) => [el.dataset.line, news[i]?.dataset.line]));
+  }
+
+  function renumber(live, map) {
+    [live, ...live.querySelectorAll('[data-line]')].forEach((el) => {
+      el.dataset.line = map.get(el.dataset.line) ?? el.dataset.line;
+    });
+  }
+
+  // Unchanged top-level children keep their live nodes, so whatever the reader is doing in them survives.
+  function applyBody(next) {
+    const before = [...pristine.content.children];
+    const unused = new Map();
+    before.forEach((el, i) => unused.set(sourceOf(el), [...(unused.get(sourceOf(el)) ?? []), i]));
+    const sequence = [...next.children].map((el) => {
+      const i = unused.get(sourceOf(el))?.shift();
+      if (i === undefined) {
+        return document.importNode(el, true);
+      }
+      const kept = liveOf[i];
+      renumber(kept, lineMap(before[i], el));
+      liveOf[i] = null;
+      return kept;
+    });
+    parkMore();
+    liveOf.filter(Boolean).forEach((el) => el.remove());
+    $('main').append(...sequence);
+    placeScriptNodes();
+    pristine = document.createElement('template');
+    pristine.innerHTML = next.innerHTML;
+    liveOf = sequence;
+  }
+
+  function placeScriptNodes() {
+    const zone = $('.qzone');
+    if (zone) {
+      $('main').prepend(zone);
+    }
+    const note = $('.draft-note');
+    if (note) {
+      ($('main > .lede') ?? $('main > h1') ?? zone).after(note);
+    }
+  }
+
+  function afterBodyChange() {
+    tagTargets();
+    mores.clear();
+    document.querySelectorAll('.has-more').forEach((el) => el.classList.remove('has-more'));
+    collectMores();
+    addSectionButtons();
+    buildTocLinks();
+    questions = [...document.querySelectorAll('main .q[id]')];
+    reopened = reopened && questions.find((q) => q.id === reopened.id);
+    workingSig = null;
+    hot = null;
+    cbtn.classList.remove('show');
+    reanchorPop();
+    reattachSheet();
+    render();
+  }
+
+  function reanchorPop() {
+    const pop = openPopEl();
+    const anchor = pop?.dataset.ct && findTarget(pop.dataset.ct);
+    if (anchor) {
+      placePop(pop, anchor);
+    }
+  }
+
+  function reattachSheet() {
+    if (!sheetOwner) {
+      return;
+    }
+    const owner = findTarget(sheetOwner.dataset.ct);
+    if (!owner) {
+      closeSheet();
+      return;
+    }
+    sheetOwner.classList.remove('sheet-owner');
+    sheetOwner = owner;
+    owner.classList.add('sheet-owner');
+    const asked = $('.sheet .ask textarea')?.value ?? '';
+    renderSheet();
+    const ta = $('.sheet .ask textarea');
+    if (ta) {
+      ta.value = asked;
+    }
+  }
+
+  // Keeps the element at the top of the viewport where it was, however much changed above it.
+  function keepingScroll(change) {
+    const anchor = [...document.querySelectorAll('main [data-ct]')].find((el) => el.getBoundingClientRect().bottom > 0);
+    const ct = anchor?.dataset.ct;
+    const top = anchor?.getBoundingClientRect().top;
+    change();
+    const again = ct && findTarget(ct);
+    if (again) {
+      scrollBy(0, again.getBoundingClientRect().top - top);
+    }
+  }
+
+  async function updateBody(v) {
+    if (bodyBusy) {
+      return;
+    }
+    bodyBusy = true;
+    try {
+      const next = await fetchMain();
+      keepingScroll(() => {
+        applyBody(next);
+        afterBodyChange();
+      });
+      bodyVersion = v;
+    } finally {
+      bodyBusy = false;
+    }
   }
 
   function markDeltas(lines) {
@@ -1685,15 +1839,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     showPop(pop, $('#status'));
   }
 
-  const hasTypedText = () => [...document.querySelectorAll('textarea')].some((t) => t.value.trim());
-
-  // Text the reader is typing outranks a newer version of the page.
-  function reloadIfPending() {
-    if (pendingReload && !hasTypedText()) {
-      reloadKeepingScroll();
-    }
-  }
-
   function showUpdate(state) {
     if (installing) {
       return;
@@ -1746,11 +1891,8 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       skillVersion = state.version;
       showStatus(state.listening ? 'listening' : 'idle');
       showUpdate(state);
-      if (state.v !== version) {
-        pendingReload = true;
-        $('#reload').hidden = false;
-        reloadIfPending();
-        return;
+      if (state.v !== bodyVersion) {
+        await updateBody(state.v);
       }
       if (firstPoll) {
         firstPoll = false;
@@ -1882,7 +2024,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     closeDialog();
     approve();
   };
-  $('#reload').onclick = reloadKeepingScroll;
   $('#update').onclick = installUpdate;
   addEventListener('resize', positionPins);
   new ResizeObserver(([entry]) => {
