@@ -353,6 +353,10 @@ nav.toc a .loader { width: 10px; height: 10px; margin-left: 6px; vertical-align:
 .offscreen-note.below { bottom: 24px; }
 @keyframes note-in { from { opacity: 0; transform: translateY(8px); } }
 .offscreen-note.docked { animation-name: fade-in; }
+:is(.thread, .thread-item) .info-link { display: block; margin-top: 6px; padding: 0; border: 0; background: none; color: var(--accent); font: 600 12px var(--sans); cursor: pointer; }
+.sheet .asked { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.sheet .asked h5 { margin: 0 0 6px; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.sheet .asked q { display: block; margin-top: 4px; font-size: 14px; }
 .tbadge { position: absolute; z-index: 41; height: 22px; padding: 0 8px; border: 0; border-radius: 11px; background: var(--accent); color: var(--on-accent); font: 700 11px/22px var(--sans); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
 .thread .earlier { display: block; margin-top: 6px; padding: 0; border: 0; background: none; color: var(--accent); font: 600 12px var(--sans); cursor: pointer; }
 .thread.arrive, .thread .msg.arrive { animation: thread-in .42s cubic-bezier(.2, .8, .2, 1) both; }
@@ -1299,12 +1303,33 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       return;
     }
     sheetWaiting = isWaiting(sheetOwner);
+    const asked = askedList(sheetOwner);
+    if (asked) {
+      body.appendChild(asked);
+    }
     const aside = mores.get(sheetOwner);
     if (aside) {
       aside.querySelectorAll('code').forEach((c) => c.classList.toggle('ref', served && Boolean(c.textContent.match(REF))));
       lendMore(aside, body);
     }
     body.appendChild(askForm(Boolean(aside)));
+  }
+
+  // The questions an expansion answers, so it still makes sense when the reader comes back to it.
+  function askedList(owner) {
+    const questions = sent.filter((c) => c.kind === 'expand' && c.target === owner.dataset.ct);
+    if (!questions.length) {
+      return null;
+    }
+    const list = document.createElement('div');
+    list.className = 'asked';
+    list.innerHTML = '<h5>You asked</h5>';
+    questions.forEach((c) => {
+      const q = document.createElement('q');
+      q.textContent = messageText(c);
+      list.appendChild(q);
+    });
+    return list;
   }
 
   function showRefInSheet(code) {
@@ -1942,7 +1967,26 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     if (m.who === 'claude' && m.c.reply.lines?.length) {
       el.append(chip('changed', changedLabel(m.c.reply.lines)));
     }
+    if (m.who === 'claude' && m.c.kind === 'expand') {
+      el.append(infoLink(m.c));
+    }
     return el;
+  }
+
+  function infoLink(c) {
+    const b = document.createElement('button');
+    b.className = 'info-link';
+    b.dataset.a = 'info';
+    b.textContent = 'Show in Info';
+    b.onclick = (e) => {
+      e.stopPropagation();
+      const thread = threadsOf().find((t) => t.key === c.target);
+      const owner = thread && anchorFor(thread);
+      if (owner) {
+        openSheet(owner, 'info');
+      }
+    };
+    return b;
   }
 
   const expandedKeys = new Set();

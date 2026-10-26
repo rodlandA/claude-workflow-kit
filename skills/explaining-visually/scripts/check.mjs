@@ -557,6 +557,39 @@ async function checkOffscreen(browser, url, dir) {
   resetPage(dir);
 }
 
+async function checkExpand(browser, url, dir) {
+  resetPage(dir);
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const target = await page.evaluate(() => document.querySelector('main .box').dataset.ct);
+  await page.locator('main .box').first().click();
+  await page.waitForTimeout(400);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  await page.locator('.sheet .ask textarea').fill('why this order?');
+  await page.locator('.sheet .ask button').click();
+  await page.waitForTimeout(500);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  const id = (await state(url)).sent.find((c) => c.kind === 'expand').id;
+  editBody(dir, '<div class="box"><b>Login form</b><small>POST /login</small></div>', '<div class="box"><b>Login form</b><small>POST /login</small></div><aside class="more"><p>Order matters.</p></aside>');
+  replyTo(dir, id, 'Added to Info for Login form');
+  await page.waitForTimeout(2600);
+  const card = page.locator(`.margin .thread[data-key="${target}"]`);
+  check((await card.locator('.msg.me').textContent()).includes('why this order?') && await card.locator('[data-a=info]').isVisible(), 'expand: the question opens a thread whose reply offers Show in Info');
+  await card.locator('[data-a=info]').click();
+  await page.waitForTimeout(800);
+  const sheet = await page.evaluate(() => {
+    const asked = document.querySelector('.sheet-body .asked');
+    const aside = document.querySelector('.sheet-body aside.more');
+    return { open: !document.querySelector('.sheet').hidden, asked: asked?.textContent ?? '', before: Boolean(asked && aside && asked.compareDocumentPosition(aside) & Node.DOCUMENT_POSITION_FOLLOWING) };
+  });
+  check(sheet.open && sheet.asked.includes('why this order?') && sheet.before, 'expand: the Info tab shows the question above the expansion');
+  await page.close();
+  resetPage(dir);
+}
+
 async function checkRemote(dir) {
   const { child, found } = await startServer(dir, { port: '4891', extra: ['--remote', 'tunnel'], until: /remote: (\S+)/ });
   try {
@@ -709,6 +742,7 @@ async function main() {
     await checkMarginLayout(browser, url, dir);
     await checkThreadActions(browser, url, dir);
     await checkOffscreen(browser, url, dir);
+    await checkExpand(browser, url, dir);
     await checkRemote(dir);
     await checkUpdate(browser, dir);
   } finally {

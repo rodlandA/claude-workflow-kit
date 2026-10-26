@@ -1,7 +1,7 @@
 {
   "private": true,
   "type": "module",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "version and repository drive the update check in serve.mjs; only check.mjs needs the dependencies.",
   "repository": {
     "type": "git",

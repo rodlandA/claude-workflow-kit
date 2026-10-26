@@ -7,7 +7,7 @@ description: Use when about to present a plan, design proposal or implementation
 
 ## Overview
 
-You write only a **body fragment**. `scripts/shell.html` adds layout, TOC, theme, a side sheet and a comment layer; `scripts/serve.mjs` serves every explainer of the repo from one local server. The reader comments on elements or the whole page; each comment reaches you as a Monitor event with the source line it points at. You edit, reply, and the page reloads with the change outlined.
+You write only a **body fragment**. `scripts/shell.html` adds layout, TOC, theme, a side sheet and a comment layer; `scripts/serve.mjs` serves every explainer of the repo from one local server. The reader comments on elements or the whole page; each comment reaches you as a Monitor event with the source line it points at. You edit and reply; the page updates in place, and your reply appears in a thread beside the element, with what it changed outlined.
 
 ## Ask first
 
@@ -80,7 +80,7 @@ Everything is commentable automatically. `example.body.html` shows a full plan.
    - `[slug] APPROVE <id> :: …` — see Approval
 
    On expiry, re-arm the same command at once. Exception: when this expiry and the previous one both delivered no events, do not re-arm; tell the user in one line that you stopped listening, and that clicking the status pill on the page shows what to send to resume. When they send it ("Pick up the comments on <slug> and listen again"), start again from step 1.
-4. **Per comment** — revise (below); once the Edit has succeeded, in a separate call: `SERVE --reply <id> "<what changed, or the answer>"`. One reply per comment, always.
+4. **Per comment** — revise (below); once the Edit has succeeded, in a separate call: `SERVE --reply <id> "<what changed, or the answer>"`. One reply per comment, always. The page credits a reply with every line changed since your previous reply, so edit first, then reply. A quote starting with `↩` is your own earlier reply: the comment continues that thread.
 5. **Done** — when the user says so, TaskStop your watcher, and the server if you started it.
 
 `SERVE <slug> --export out.html` writes a standalone copy for sharing.
