@@ -352,6 +352,83 @@ async function checkLiveUpdate(browser, url, dir) {
   resetPage(dir);
 }
 
+const boxOf = (page, sel) => page.evaluate((s) => {
+  const r = document.querySelector(s)?.getBoundingClientRect();
+  return r ? { left: r.left, right: r.right, top: r.top, bottom: r.bottom } : null;
+}, sel);
+const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+
+async function checkMarginReply(browser, url, dir) {
+  resetPage(dir);
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  await page.locator('main .box').first().click();
+  await page.locator('.pop textarea').fill('rename this');
+  await page.locator('.pop [data-a=send]').click();
+  await page.waitForTimeout(700);
+  check(await page.locator('.margin .thread .chip.waiting').isVisible(), 'margin: a sent comment opens a thread that shows Claude is working');
+  const id = (await state(url)).sent.at(-1).id;
+  editBody(dir, '<b>Login form</b>', '<b>Login form v2</b>');
+  replyTo(dir, id, 'Renamed it.');
+  await page.waitForTimeout(3000);
+  const thread = page.locator('.margin .thread').first();
+  check((await thread.locator('.msg.claude').textContent()).includes('Renamed it.'), 'margin: the reply lands in the thread');
+  check(await thread.locator('.chip.changed').isVisible() && (await page.locator('main .box.delta').count()) === 1, 'margin: the reply names and outlines what it changed');
+  const [t, b] = [await thread.boundingBox(), await page.locator('main .box').first().boundingBox()];
+  check(Math.abs(t.y - b.y) < 40, 'margin: the thread sits level with the renamed element');
+  check((await page.locator('#changes, #clear-changes, #reload').count()) === 0, 'margin: the bar no longer has change or reload buttons');
+  const target = await page.evaluate(() => document.querySelector('.margin .thread').dataset.key);
+  await postComments(url, [{ id: 'long1', target, line: 25, text: 'and this?' }]);
+  replyTo(dir, 'long1', 'Also done.');
+  await page.waitForTimeout(2600);
+  check((await thread.locator('.msg').count()) === 1 && (await thread.locator('.earlier').textContent()) === '▾ 3 earlier in this thread', 'margin: a long thread collapses to its latest message');
+  await thread.locator('.earlier').click();
+  await page.waitForTimeout(300);
+  check((await page.locator('.margin .thread').first().locator('.msg').count()) === 4, 'margin: the collapsed thread unfolds on click');
+  await page.close();
+  resetPage(dir);
+}
+
+async function checkMarginLayout(browser, url, dir) {
+  resetPage(dir);
+  let page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const items = await page.evaluate(() => [...document.querySelectorAll('.tldr li')].slice(0, 3).map((li) => ({ target: li.dataset.ct, line: Number(li.dataset.line) })));
+  await postComments(url, [...items.map((c, i) => ({ id: `lay${i}`, ...c, text: `point ${i}` })), { id: 'gen', target: 'document', line: null, text: 'overall' }]);
+  await page.waitForTimeout(2600);
+  const cards = await page.evaluate(() => [...document.querySelectorAll('.margin .thread')].map((el) => {
+    const r = el.getBoundingClientRect();
+    return { key: el.dataset.key, general: el.classList.contains('general'), left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+  }));
+  const plain = cards.filter((c) => !c.general);
+  const general = cards.find((c) => c.general);
+  check(plain.length === 3 && plain.every((a, i) => plain.every((b, j) => i === j || !overlaps(a, b))), 'margin: threads on adjacent elements never overlap');
+  const ties = await page.evaluate(() => [...document.querySelectorAll('.margin .tie')].map((p) => {
+    const anchor = [...document.querySelectorAll('[data-ct]')].find((el) => el.dataset.ct === p.dataset.key);
+    return { gap: Math.abs(p.getBoundingClientRect().left - anchor.getBoundingClientRect().right), key: p.dataset.key };
+  }));
+  check(ties.length === 3 && ties.every((x) => x.gap <= 4), 'margin: each tie starts at its own element');
+  check(Boolean(general) && plain.every((c) => general.top <= c.top && general.left > c.left) && !ties.some((x) => x.key === 'document'), 'margin: the general thread sits on top, offset right, with no tie');
+  await page.locator('main .box').first().click();
+  await page.waitForTimeout(700);
+  check(await page.locator('.margin').isHidden(), 'margin: hidden while the Info sheet is open');
+  await page.close();
+  page = await browser.newPage({ viewport: { width: 1000, height: 800 } });
+  await page.goto(url);
+  await page.waitForTimeout(1500);
+  const mid = await page.evaluate(() => ({ margin: document.querySelector('.margin').getBoundingClientRect().width, toc: getComputedStyle(document.querySelector('nav.toc')).display, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
+  check(mid.margin > 200 && mid.toc === 'flex' && mid.overflow <= 0, `1000px: the margin stays, the TOC becomes a row, no overflow (${JSON.stringify(mid)})`);
+  await page.close();
+  page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(url);
+  await page.waitForTimeout(1500);
+  check(await page.locator('.margin').isHidden(), '390px: no margin');
+  await page.close();
+  resetPage(dir);
+}
+
 async function checkRemote(dir) {
   const { child, found } = await startServer(dir, { port: '4891', extra: ['--remote', 'tunnel'], until: /remote: (\S+)/ });
   try {
@@ -500,6 +577,8 @@ async function main() {
     await checkServerGuards(url, dir);
     await checkServerThreads(url, dir);
     await checkLiveUpdate(browser, url, dir);
+    await checkMarginReply(browser, url, dir);
+    await checkMarginLayout(browser, url, dir);
     await checkRemote(dir);
     await checkUpdate(browser, dir);
   } finally {

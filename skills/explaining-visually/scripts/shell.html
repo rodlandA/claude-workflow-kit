@@ -50,7 +50,7 @@ body { margin: 0; min-height: 100vh; background-color: var(--bg); background-ima
 textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 code { font-family: var(--mono); font-size: .86em; background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
 
-.layout { display: grid; grid-template-columns: 230px minmax(0, 920px); gap: 40px; padding: 0 24px; margin-left: max(0px, calc((100% - 1238px) * .3)); }
+.layout { --margin-w: 300px; display: grid; grid-template-columns: 230px minmax(0, 760px) var(--margin-w); gap: 40px; padding: 0 24px; margin-left: max(0px, calc((100% - 1418px) * .3)); }
 nav.toc { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow: auto; padding: 96px 0 32px; font-size: 13.5px; }
 nav.toc a { display: flex; align-items: baseline; gap: 10px; color: var(--muted); text-decoration: none; padding: 5px 10px; border-left: 2px solid var(--line); text-wrap: balance; }
 nav.toc a .n { flex: none; min-width: 2ch; font: 500 11px var(--mono); letter-spacing: .04em; }
@@ -197,8 +197,6 @@ html:is(.vt-side, .vt-side-open, .vt-side-close, .vt-snap) :is(.sheet, .panel) {
   html:is(.vt-side-open, .vt-side-close) #status { view-transition-name: bar-status; }
   html:is(.vt-side-open, .vt-side-close) #general-loader { view-transition-name: bar-loader; }
   html:is(.vt-side-open, .vt-side-close) #theme { view-transition-name: bar-theme; }
-  html:is(.vt-side-open, .vt-side-close) #changes { view-transition-name: bar-changes; }
-  html:is(.vt-side-open, .vt-side-close) #clear-changes { view-transition-name: bar-clear; }
   html:is(.vt-side-open, .vt-side-close) #list { view-transition-name: bar-list; }
   html:is(.vt-side-open, .vt-side-close) #send { view-transition-name: bar-send; }
   html:is(.vt-side-open, .vt-side-close) #approve { view-transition-name: bar-approve; }
@@ -313,10 +311,37 @@ nav.toc a .loader { width: 10px; height: 10px; margin-left: 6px; vertical-align:
 @keyframes spin { to { transform: rotate(1turn); } }
 @media (prefers-reduced-motion: reduce) { .loader { animation-duration: 3s; } }
 .delta { outline: 2px solid var(--new); outline-offset: 3px; box-shadow: 0 0 0 6px var(--new-soft); }
+.linked { outline: 2px solid var(--note); outline-offset: 3px; }
+
+/* Margin threads */
+.margin { position: relative; min-width: 0; padding: 96px 0 120px; }
+.margin .ties { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.margin .tie { fill: none; stroke: var(--line); stroke-width: 1.5; }
+.margin .tie.hot { stroke: var(--new); }
+.thread { position: absolute; left: 0; right: 24px; padding: 10px 12px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,.10); font-size: 13px; line-height: 1.45; transition: top .3s cubic-bezier(.2, .8, .2, 1), box-shadow .2s; cursor: pointer; }
+.thread.general { left: 24px; right: 0; }
+.thread.linked { outline: 0; box-shadow: 0 0 0 2px var(--note), 0 6px 20px rgba(0,0,0,.12); }
+.thread .msg + .msg { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.thread .who { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; margin-bottom: 2px; }
+.thread .who::before { content: ''; flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--changed); }
+.thread .msg.claude .who { color: var(--accent); }
+.thread .msg.claude .who::before { background: radial-gradient(circle at 30% 30%, var(--flame), var(--accent)); }
+.thread .who small { margin-left: auto; font-weight: 400; color: var(--muted); }
+.thread .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.thread .chip { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 1px 8px; border-radius: 99px; font: 500 11px var(--mono); }
+.thread .chip.waiting { background: var(--changed-soft); color: var(--changed); }
+.thread .chip.changed { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; background: var(--accent-soft); color: var(--accent); }
+.thread .chip .loader { width: 10px; height: 10px; }
+.thread .earlier { display: block; margin-top: 6px; padding: 0; border: 0; background: none; color: var(--accent); font: 600 12px var(--sans); cursor: pointer; }
+.thread.arrive, .thread .msg.arrive { animation: thread-in .42s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes thread-in { from { opacity: 0; transform: translateX(40px); } }
+@media (prefers-reduced-motion: reduce) {
+  .thread { transition: none; }
+  .thread.arrive, .thread .msg.arrive { animation-name: fade-in; }
+  @keyframes fade-in { from { opacity: 0; } }
+}
 svg .delta > :is(rect, circle, ellipse, path, polygon) { stroke: var(--new); stroke-width: 2.5; }
-.bar button.changes { border-color: var(--new); color: var(--new); }
 .bar button.reload { border-color: var(--accent); color: var(--accent); }
-.bar button.pulse { border-color: var(--note); color: var(--note); }
 .pop { position: absolute; z-index: 60; width: min(380px, calc(100vw - 32px)); background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
 .pop.general { position: fixed; left: 50% !important; top: 14vh !important; transform: translateX(-50%); width: min(680px, calc(100vw - 32px)); padding: 18px; }
 .pop .target { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
@@ -354,10 +379,9 @@ svg .delta > :is(rect, circle, ellipse, path, polygon) { stroke: var(--new); str
 .sheet .ask button { font: inherit; font-size: 13px; border-radius: 8px; padding: 6px 14px; cursor: pointer; background: var(--flame); color: var(--on-flame); border: 1px solid var(--flame); font-weight: 600; }
 .sheet .ask button:disabled { opacity: .45; cursor: default; }
 @media (min-width: 840px) { body.sheet-open, body:has(.panel.open) { padding-right: var(--sheet-w); } }
-@media (min-width: 840px) and (max-width: 1099px) {
-  body.sheet-open .layout, body:has(.panel.open) .layout { grid-template-columns: 0 minmax(0, 920px); gap: 0; }
-  body.sheet-open nav.toc, body:has(.panel.open) nav.toc { opacity: 0; visibility: hidden; }
-}
+body.sheet-open .margin, body:has(.panel.open) .margin { display: none; }
+@media (min-width: 1251px) { body.sheet-open .layout, body:has(.panel.open) .layout { grid-template-columns: 230px minmax(0, 920px); } }
+@media (min-width: 840px) and (max-width: 1250px) { body.sheet-open .layout, body:has(.panel.open) .layout { grid-template-columns: minmax(0, 1fr); } }
 .sheet .handle, .panel .handle { display: none; justify-content: center; align-items: center; height: 48px; flex: none; cursor: grab; touch-action: none; }
 .sheet .handle::before, .panel .handle::before { content: ''; width: 32px; height: 4px; border-radius: 2px; background: var(--muted); opacity: .5; }
 .scrim { display: none; }
@@ -427,15 +451,19 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   :is(.sheet, .panel)[data-snap="3"] { height: calc(100dvh - 56px); }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 1250px) {
   nav.toc .keys { display: none; }
-  html { scroll-padding-top: calc(var(--bar-h) + 16px); }
-  .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; }
-  nav.toc { position: static; max-height: none; display: flex; gap: 8px; margin: 0 -16px; padding: calc(var(--bar-h) + 16px) 16px 2px; overflow-x: auto; scrollbar-width: none; }
+  .layout { --margin-w: 260px; grid-template-columns: minmax(0, 1fr) var(--margin-w); column-gap: 32px; row-gap: 0; padding: 0 16px; margin-left: 0; }
+  nav.toc { grid-column: 1 / -1; position: static; max-height: none; display: flex; gap: 8px; margin: 0 -16px; padding: calc(var(--bar-h) + 16px) 16px 2px; overflow-x: auto; scrollbar-width: none; }
   nav.toc a, nav.toc a.sub { flex: none; border: 1px solid var(--line); border-radius: 99px; padding: 6px 12px; margin: 0; white-space: nowrap; background: var(--card); font-size: 13px; }
   nav.toc a.sub { display: none; }
   nav.toc a.active { border-color: var(--accent); }
   main { padding-top: 24px; }
+}
+@media (max-width: 860px) {
+  html { scroll-padding-top: calc(var(--bar-h) + 16px); }
+  .layout { grid-template-columns: 1fr; gap: 0; }
+  .margin { display: none; }
   .flow { flex-direction: column; align-items: stretch; }
   .arrow::after { content: "\2193"; }
   .flow.v > .col, .flow.v > .col > .flow > .box { width: 100%; }
@@ -445,7 +473,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   .theme .knob, .theme svg { transition: none !important; }
   html { scroll-behavior: auto; }
 }
-@media print { .bar, .panel, .sheet, .cbtn, .h-cbtn, nav.toc { display: none; } .layout { display: block; } }
+@media print { .bar, .panel, .sheet, .cbtn, .h-cbtn, nav.toc, .margin { display: none; } .layout { display: block; } }
 </style>
 </head>
 <body>
@@ -453,8 +481,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   <span class="status" id="status"><span>Connecting…</span></span>
   <button id="theme" class="theme" role="switch" aria-checked="false"><span class="knob"><svg class="sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="moon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></span></button>
   <span class="loader" id="general-loader" title="The agent is working on a general comment" hidden></span>
-  <button id="changes" class="changes" title="Jump to the next change" hidden></button>
-  <button id="clear-changes" class="changes" title="Mark changes as seen" hidden>&#x2715;</button>
   <button id="update" class="reload" hidden></button>
   <div class="actions">
     <button id="list">Comments</button>
@@ -468,6 +494,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   <main>
 {{BODY}}
   </main>
+  <div class="margin" aria-label="Comment threads"><svg class="ties" aria-hidden="true"></svg></div>
 </div>
 <aside class="panel">
   <div class="handle" title="Drag to resize or close"></div>
@@ -506,7 +533,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   const DOC = '{{DOC}}';
   const KEY = `explainer:${DOC}`;
   const SCROLL_KEY = `${KEY}:scroll`;
-  const BASE_KEY = `${KEY}:base`;
   const SHEET_KEY = `${KEY}:sheet`;
   const compact = matchMedia('(max-width: 839px)');
   const RENDERED = '{{VERSION}}';
@@ -520,9 +546,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   let drafts = [];
   let sent = [];
   let bodyVersion = RENDERED;
-  let firstPoll = true;
   let bodyBusy = false;
-  let seenReplies = null;
   let installing = false;
   let skillVersion = null;
   const SEEN_KEY = `${KEY}:seen`;
@@ -542,8 +566,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     document.title = unseen ? `(${unseen}) ${BASE_TITLE}` : BASE_TITLE;
     $('link[rel=icon]').href = unseen ? DOT : 'data:,';
   }
-  let deltas = [];
-  let deltaIndex = 0;
   let hot = null;
   let hideTimer = null;
   let sheetOwner = null;
@@ -1080,6 +1102,8 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   function render() {
     markTargets();
+    markChanged();
+    renderMargin();
     renderQuestions();
     const waiting = sent.filter((c) => !c.reply).length;
     const counts = [drafts.length && `${drafts.length} unsent`, waiting && `${waiting} waiting`].filter(Boolean);
@@ -1450,15 +1474,22 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     const sel = getSelection();
     const quote = sel && !sel.isCollapsed && el.contains(sel.anchorNode) ? sel.toString().trim().slice(0, 300) : '';
     const sheetFollows = !compact.matches && !el.closest('.sheet');
-    if (sheetFollows && sheetOwner !== el) {
+    const lent = sheetFollows && sheetOwner !== el;
+    if (lent) {
       openSheet(el, defaultTab(el));
     }
+    // A sheet that only opened alongside the comment makes way, so its thread shows in the margin.
+    const makeWay = () => {
+      if (lent && sheetOwner === el) {
+        closeSheet();
+      }
+    };
     openPop({
       anchor: el,
       target: el.dataset.ct,
       quote,
-      onSend: (text) => post([commentFrom(el, text, quote)]),
-      onBatch: (text) => { drafts.push(commentFrom(el, text, quote)); persist(); render(); },
+      onSend: (text) => { makeWay(); return post([commentFrom(el, text, quote)]); },
+      onBatch: (text) => { makeWay(); drafts.push(commentFrom(el, text, quote)); persist(); render(); },
       tools: !sheetFollows && !el.closest('aside.more'),
     });
   }
@@ -1496,7 +1527,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
         setSnap($('.panel'), START_SNAP);
       }
       $('#list').classList.toggle('on', open);
-      $('#list').classList.remove('pulse');
       if (open && !compact.matches) {
         $('.panel .general textarea').focus();
       }
@@ -1752,42 +1782,241 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     }
   }
 
-  function markDeltas(lines) {
+  function changedElements(lines) {
     const wanted = new Set(lines.map(String));
     const changed = [...document.querySelectorAll('main [data-line], .sheet-body [data-line]')].filter((el) => wanted.has(el.dataset.line) && el.parentElement.dataset.line !== el.dataset.line);
     const outermost = changed.filter((el) => !changed.some((outer) => outer !== el && outer.contains(el)));
-    deltas = [...new Set(outermost.map(ownerOf))];
-    deltas.forEach((el) => el.classList.add('delta'));
-    $('#changes').hidden = deltas.length === 0;
-    $('#clear-changes').hidden = deltas.length === 0;
-    $('#changes').textContent = `${deltas.length} changed`;
+    return [...new Set(outermost.map(ownerOf))];
   }
 
-  function nextDelta() {
-    const el = deltas[deltaIndex % deltas.length];
-    deltaIndex += 1;
-    el.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
+  function markChanged() {
+    document.querySelectorAll('.delta').forEach((el) => el.classList.remove('delta'));
+    sent.filter((c) => c.reply?.lines?.length).forEach((c) => changedElements(c.reply.lines).forEach((el) => el.classList.add('delta')));
   }
 
-  // Changes are outlined against a baseline that only moves when the reader clears them.
-  function baseVersion() {
-    try {
-      const base = sessionStorage.getItem(BASE_KEY);
-      if (base) {
-        return base;
+  let resolved = {};
+  const timeOf = (iso) => (iso ? Date.parse(iso) : 0);
+  const inThread = (c) => c.kind !== 'answer' && c.kind !== 'approve';
+  const latestReply = (thread) => thread.items.filter((c) => c.reply).pop() ?? null;
+
+  function threadsOf() {
+    const byKey = new Map();
+    const threadOf = (key) => {
+      if (!byKey.has(key)) {
+        byKey.set(key, { key, items: [], drafts: [], latestAt: 0, resolved: false });
       }
-      sessionStorage.setItem(BASE_KEY, RENDERED);
-    } catch {}
-    return RENDERED;
+      return byKey.get(key);
+    };
+    sent.filter(inThread).forEach((c) => {
+      const thread = threadOf(c.target);
+      thread.items.push(c);
+      thread.latestAt = Math.max(thread.latestAt, timeOf(c.sentAt), timeOf(c.reply?.at));
+    });
+    drafts.filter(inThread).forEach((c) => threadOf(c.target).drafts.push(c));
+    return [...byKey.values()].map((t) => ({ ...t, resolved: Boolean(resolved[t.key]) && timeOf(resolved[t.key]) >= t.latestAt }));
   }
-  const since = baseVersion();
 
-  function clearDeltas() {
-    try { sessionStorage.setItem(BASE_KEY, RENDERED); } catch {}
-    deltas.forEach((el) => el.classList.remove('delta'));
-    deltas = [];
-    $('#changes').hidden = true;
-    $('#clear-changes').hidden = true;
+  // A renamed element is found again through what the reply changed, then through its section.
+  function anchorFor(thread) {
+    if (thread.key === 'document') {
+      return null;
+    }
+    const section = thread.key.split(' › ')[0];
+    return findTarget(thread.key)
+      ?? changedElements(latestReply(thread)?.reply.lines ?? [])[0]
+      ?? [...document.querySelectorAll('main section > h2')].find((h) => h.textContent.trim() === section)
+      ?? null;
+  }
+
+  function ago(iso) {
+    const seconds = (Date.now() - timeOf(iso)) / 1000;
+    if (!iso || seconds < 60) {
+      return 'now';
+    }
+    if (seconds < 3600) {
+      return `${Math.floor(seconds / 60)} min`;
+    }
+    if (seconds < 86400) {
+      return `${Math.floor(seconds / 3600)} h`;
+    }
+    return new Date(iso).toLocaleDateString();
+  }
+
+  function chip(kind, text, spinning) {
+    const span = document.createElement('span');
+    span.className = `chip ${kind}`;
+    if (spinning) {
+      span.append(loader(text));
+    }
+    span.append(text);
+    return span;
+  }
+
+  function changedLabel(lines) {
+    const section = changedElements(lines)[0]?.closest('section');
+    const h2 = section?.querySelector('h2');
+    if (!h2) {
+      return 'changed';
+    }
+    const n = [...document.querySelectorAll('main section')].indexOf(section) + 1;
+    return `changed · ${String(n).padStart(2, '0')} ${tidy(h2.textContent)}`;
+  }
+
+  const messagesOf = (thread) => thread.items.flatMap((c) => [{ id: c.id, who: 'me', c }, ...(c.reply ? [{ id: `${c.id}:r`, who: 'claude', c }] : [])]);
+  const messageText = (c) => (c.kind === 'expand' ? c.text || 'Expand this' : c.text);
+
+  function messageEl(m) {
+    const el = document.createElement('div');
+    el.className = `msg ${m.who}`;
+    el.dataset.id = m.id;
+    el.innerHTML = '<div class="who"><span></span><small></small></div><div class="text"></div>';
+    el.querySelector('.who span').textContent = m.who === 'me' ? 'You' : 'Claude';
+    el.querySelector('small').dataset.at = (m.who === 'me' ? m.c.sentAt : m.c.reply.at) ?? '';
+    el.querySelector('.text').textContent = m.who === 'me' ? messageText(m.c) : m.c.reply.text;
+    if (m.who === 'me' && !m.c.reply) {
+      el.append(chip('waiting', 'Claude is working', true));
+    }
+    if (m.who === 'claude' && m.c.reply.lines?.length) {
+      el.append(chip('changed', changedLabel(m.c.reply.lines)));
+    }
+    return el;
+  }
+
+  const expandedKeys = new Set();
+  const shownMsgs = new Set();
+  const cards = new Map();
+  let anchors = new Map();
+  let marginReady = false;
+
+  function threadCard(thread) {
+    const card = document.createElement('div');
+    card.className = thread.key === 'document' ? 'thread general' : 'thread';
+    card.dataset.key = thread.key;
+    const msgs = messagesOf(thread);
+    const earlier = msgs.length > 3 && !expandedKeys.has(thread.key) ? msgs.length - 1 : 0;
+    msgs.slice(earlier).forEach((m) => card.append(messageEl(m)));
+    if (earlier) {
+      const more = document.createElement('button');
+      more.className = 'earlier';
+      more.textContent = `▾ ${earlier} earlier in this thread`;
+      more.onclick = (e) => {
+        e.stopPropagation();
+        expandedKeys.add(thread.key);
+        renderMargin();
+      };
+      card.append(more);
+    }
+    return card;
+  }
+
+  function markArrivals(card, isNew) {
+    if (marginReady && isNew) {
+      card.classList.add('arrive');
+    }
+    card.querySelectorAll('.msg').forEach((m) => {
+      if (marginReady && !isNew && !shownMsgs.has(m.dataset.id)) {
+        m.classList.add('arrive');
+      }
+      shownMsgs.add(m.dataset.id);
+    });
+  }
+
+  const threadSig = (t) => JSON.stringify([t.items.map((c) => [c.id, c.reply?.text ?? null, c.reply?.lines ?? null]), expandedKeys.has(t.key)]);
+
+  // A card is rebuilt only when its thread changed, so a poll never restarts an animation or drops hover.
+  function renderMargin() {
+    const open = threadsOf().filter((t) => t.items.length && !t.resolved);
+    const keys = new Set(open.map((t) => t.key));
+    cards.forEach((entry, key) => {
+      if (!keys.has(key)) {
+        entry.el.remove();
+        cards.delete(key);
+      }
+    });
+    open.forEach((thread) => {
+      const sig = threadSig(thread);
+      const entry = cards.get(thread.key);
+      if (entry?.sig === sig) {
+        entry.thread = thread;
+        return;
+      }
+      const el = threadCard(thread);
+      markArrivals(el, !entry);
+      if (entry) {
+        entry.el.replaceWith(el);
+      } else {
+        $('.margin').append(el);
+      }
+      cards.set(thread.key, { sig, el, thread });
+    });
+    marginReady = true;
+    document.querySelectorAll('.margin small[data-at]').forEach((small) => {
+      small.textContent = ago(small.dataset.at);
+    });
+    layoutMargin();
+  }
+
+  function layoutThreads(wanted, heights, gap = 8) {
+    let floor = -Infinity;
+    return wanted.map((w, i) => {
+      const top = Math.max(w, floor);
+      floor = top + heights[i] + gap;
+      return top;
+    });
+  }
+
+  function layoutMargin() {
+    const margin = $('.margin');
+    if (!margin.offsetParent) {
+      return;
+    }
+    const base = margin.getBoundingClientRect();
+    const head = parseFloat(getComputedStyle(margin).paddingTop);
+    const placed = [...cards.values()].map((entry) => {
+      const anchor = anchorFor(entry.thread);
+      const wanted = anchor ? anchor.getBoundingClientRect().top - base.top : head;
+      return { entry, anchor, wanted, order: entry.thread.key === 'document' ? -Infinity : wanted };
+    }).sort((a, b) => a.order - b.order);
+    const tops = layoutThreads(placed.map((p) => p.wanted), placed.map((p) => p.entry.el.offsetHeight));
+    placed.forEach((p, i) => {
+      p.entry.el.style.top = `${tops[i]}px`;
+    });
+    drawTies(placed, tops, base);
+    anchors = new Map(placed.filter((p) => p.anchor).map((p) => [p.entry.thread.key, p.anchor]));
+  }
+
+  function drawTies(placed, tops, base) {
+    const svg = $('.margin .ties');
+    svg.textContent = '';
+    placed.forEach((p, i) => {
+      if (!p.anchor) {
+        return;
+      }
+      const r = p.anchor.getBoundingClientRect();
+      const ax = r.right - base.left + 2;
+      const ay = Math.min(r.top - base.top + 14, r.bottom - base.top - 4);
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('class', 'tie');
+      path.setAttribute('d', `M${ax} ${ay} H-14 L0 ${tops[i] + 16}`);
+      path.dataset.key = p.entry.thread.key;
+      svg.append(path);
+    });
+  }
+
+  let linked = [];
+
+  function link(key) {
+    linked.forEach((el) => el.classList.remove('linked', 'hot'));
+    const tie = key && [...document.querySelectorAll('.margin .tie')].find((p) => p.dataset.key === key);
+    linked = key ? [cards.get(key)?.el, anchors.get(key), tie].filter(Boolean) : [];
+    linked.forEach((el) => el.classList.add(el === tie ? 'hot' : 'linked'));
+  }
+
+  function linkFromHover(e) {
+    const card = e.target.closest('.margin .thread');
+    const el = card ? null : e.target.closest('[data-ct]');
+    const key = card?.dataset.key ?? [...anchors].find(([, a]) => a === el)?.[0] ?? null;
+    link(key);
   }
 
   const STATUS = {
@@ -1887,24 +2116,16 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   async function poll() {
     try {
-      const state = await (await fetch(`state?since=${encodeURIComponent(since)}`, { cache: 'no-store' })).json();
+      const state = await (await fetch('state', { cache: 'no-store' })).json();
       skillVersion = state.version;
       showStatus(state.listening ? 'listening' : 'idle');
       showUpdate(state);
       if (state.v !== bodyVersion) {
         await updateBody(state.v);
       }
-      if (firstPoll) {
-        firstPoll = false;
-        markDeltas(state.changed ?? []);
-      }
-      const replies = state.sent.filter((c) => c.reply).length;
-      if (seenReplies !== null && replies > seenReplies && !$('.panel').classList.contains('open')) {
-        $('#list').classList.add('pulse');
-      }
-      seenReplies = replies;
-      showUnseen(replies);
+      showUnseen(state.sent.filter((c) => c.reply).length);
       sent = state.sent;
+      resolved = state.resolved ?? {};
       render();
       motion = true;
     } catch {
@@ -1941,7 +2162,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       showRefInSheet(ref);
       return;
     }
-    if (e.target.closest('.bar, .panel, .pop, nav, .cbtn, .h-cbtn, a, button, dialog, .sheet .ask, .qzone')) {
+    if (e.target.closest('.bar, .panel, .pop, nav, .cbtn, .h-cbtn, a, button, dialog, .sheet .ask, .qzone, .margin')) {
       return;
     }
     const el = e.target.closest('[data-ct]');
@@ -2030,8 +2251,10 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     document.documentElement.style.setProperty('--bar-h', `${Math.ceil(entry.borderBoxSize[0].blockSize)}px`);
     positionPins();
   }).observe($('.bar'));
-  $('#changes').onclick = nextDelta;
-  $('#clear-changes').onclick = clearDeltas;
+  document.addEventListener('mouseover', linkFromHover);
+  addEventListener('resize', layoutMargin);
+  document.fonts.ready.then(layoutMargin);
+  new ResizeObserver(() => layoutMargin()).observe($('main'));
 
   showThemeButton();
   requestAnimationFrame(() => requestAnimationFrame(() => $('#theme').classList.add('ready')));
