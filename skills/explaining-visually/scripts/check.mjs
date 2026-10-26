@@ -429,6 +429,90 @@ async function checkMarginLayout(browser, url, dir) {
   resetPage(dir);
 }
 
+const pendingLines = (dir) => execFileSync(process.execPath, [path.join(here, 'serve.mjs'), '--pending', '--dir', dir], { encoding: 'utf8' });
+const inView = (page, sel) => page.evaluate((s) => {
+  const r = document.querySelector(s).getBoundingClientRect();
+  return r.top >= 0 && r.bottom <= innerHeight;
+}, sel);
+
+async function checkThreadActions(browser, url, dir) {
+  resetPage(dir);
+  let page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const box = await page.evaluate(() => {
+    const el = document.querySelector('main .box');
+    return { target: el.dataset.ct, line: Number(el.dataset.line) };
+  });
+  await postComments(url, [{ id: 'act1', ...box, text: 'tighten this' }]);
+  editBody(dir, '<small>POST /login</small>', '<small>POST /session</small>');
+  replyTo(dir, 'act1', 'Done.');
+  await page.waitForTimeout(2600);
+  const card = () => page.locator(`.margin .thread[data-key="${box.target}"]`);
+  await card().locator('textarea').fill('one more');
+  await card().locator('[data-a=send]').click();
+  await page.waitForTimeout(700);
+  check(pendingLines(dir).includes(`[${box.target}] "↩ Done." :: one more`), 'actions: a reply in the thread reaches Claude with its previous answer quoted');
+  await card().locator('textarea').fill('later');
+  await card().locator('[data-a=batch]').click();
+  await page.waitForTimeout(400);
+  check((await card().locator('.msg.me.draft').textContent()).includes('not sent') && (await page.locator('#send').textContent()) === 'Send batch (1)', 'actions: a batched reply shows in the thread as not sent');
+  await card().hover();
+  await card().locator('[data-a=fold]').click();
+  await page.waitForTimeout(400);
+  check((await card().getAttribute('class')).includes('folded') && (await card().textContent()).includes('💬'), 'actions: fold shrinks the thread to a tab');
+  await page.reload();
+  await page.waitForTimeout(1500);
+  check((await card().getAttribute('class')).includes('folded'), 'actions: a folded thread stays folded after a reload');
+  await card().click();
+  await page.waitForTimeout(400);
+  await card().hover();
+  await card().locator('[data-a=resolve]').click();
+  await page.waitForTimeout(700);
+  check((await card().count()) === 0 && (await page.locator('.tbadge').count()) === 1, 'actions: resolve takes the thread out of the margin and leaves a counter');
+  check(Boolean((await state(url)).resolved[box.target]), 'actions: resolve is stored on the server');
+  await page.locator('#list').click();
+  await page.waitForTimeout(700);
+  check((await page.locator(`.panel .thread-item.resolved[data-key="${box.target}"]`).count()) === 1, 'actions: the panel lists the thread under Resolved');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  const followUp = (await state(url)).sent.find((c) => c.text === 'one more').id;
+  replyTo(dir, followUp, 'Tightened.');
+  await page.waitForTimeout(2600);
+  check((await card().count()) === 1, 'actions: a new reply reopens a resolved thread');
+  await card().locator('.msg.claude').last().click();
+  await page.waitForTimeout(900);
+  check(await page.locator('.panel.open').isVisible() && await inView(page, `.panel .thread-item[data-key="${box.target}"]`), 'actions: clicking a thread opens the panel on it');
+  check((await page.locator('main .box.flash').count()) === 1, 'actions: clicking a thread flashes the change');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  const step = await page.evaluate(() => {
+    const el = document.querySelector('main .step');
+    return { target: el.dataset.ct, line: Number(el.dataset.line) };
+  });
+  await postComments(url, [{ id: 'act2', ...step, text: 'which file?' }]);
+  editBody(dir, '<td>Deleted in step 3</td>', '<td>Deleted in step 3, see step 1</td>');
+  replyTo(dir, 'act2', 'Noted in the table.');
+  await page.waitForTimeout(2600);
+  await page.evaluate(() => document.querySelector('main .step').scrollIntoView({ block: 'center' }));
+  await page.waitForTimeout(300);
+  await page.locator(`.margin .thread[data-key="${step.target}"]`).hover();
+  await page.locator(`.margin .thread[data-key="${step.target}"] [data-a=show]`).click();
+  await page.waitForTimeout(900);
+  check(await inView(page, 'table.files tr:last-child'), 'actions: Show change scrolls to what the reply changed');
+  await page.close();
+  page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(url);
+  await page.waitForTimeout(1500);
+  const badge = page.locator('.tbadge').first();
+  await badge.scrollIntoViewIfNeeded();
+  await badge.click();
+  await page.waitForTimeout(800);
+  check(await page.locator('.panel.open').isVisible() && (await page.locator('.panel .thread-item').count()) >= 2, '390px: a thread counter opens the panel on the thread');
+  await page.close();
+  resetPage(dir);
+}
+
 async function checkRemote(dir) {
   const { child, found } = await startServer(dir, { port: '4891', extra: ['--remote', 'tunnel'], until: /remote: (\S+)/ });
   try {
@@ -579,6 +663,7 @@ async function main() {
     await checkLiveUpdate(browser, url, dir);
     await checkMarginReply(browser, url, dir);
     await checkMarginLayout(browser, url, dir);
+    await checkThreadActions(browser, url, dir);
     await checkRemote(dir);
     await checkUpdate(browser, dir);
   } finally {

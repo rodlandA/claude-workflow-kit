@@ -277,7 +277,7 @@ html.vt-snap::view-transition-old(side), html.vt-snap::view-transition-new(side)
 body.sheet-open .bar, body:has(.panel.open) .bar { top: 0; right: 0; width: var(--sheet-w); max-width: 100vw; border-right-color: transparent; border-radius: 16px 0 0 0; box-shadow: none; }
 body.sheet-open .bar .status, body:has(.panel.open) .bar .status { margin-right: 0; }
 @keyframes bar-in { from { opacity: 0; } }
-.bar button, .pop button, .panel button, .qzone button { font: inherit; font-size: 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); padding: 6px 12px; cursor: pointer; }
+.bar button, .pop button, .panel button, .qzone button, .thread .tools button { font: inherit; font-size: 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); padding: 6px 12px; cursor: pointer; }
 .bar button.send { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .bar button:disabled { opacity: .45; cursor: default; }
 .status { display: inline-flex; align-items: center; gap: 6px; font: 12px var(--mono); color: var(--muted); padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); white-space: nowrap; }
@@ -321,17 +321,33 @@ nav.toc a .loader { width: 10px; height: 10px; margin-left: 6px; vertical-align:
 .thread { position: absolute; left: 0; right: 24px; padding: 10px 12px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,.10); font-size: 13px; line-height: 1.45; transition: top .3s cubic-bezier(.2, .8, .2, 1), box-shadow .2s; cursor: pointer; }
 .thread.general { left: 24px; right: 0; }
 .thread.linked { outline: 0; box-shadow: 0 0 0 2px var(--note), 0 6px 20px rgba(0,0,0,.12); }
-.thread .msg + .msg { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
-.thread .who { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; margin-bottom: 2px; }
-.thread .who::before { content: ''; flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--changed); }
-.thread .msg.claude .who { color: var(--accent); }
-.thread .msg.claude .who::before { background: radial-gradient(circle at 30% 30%, var(--flame), var(--accent)); }
-.thread .who small { margin-left: auto; font-weight: 400; color: var(--muted); }
-.thread .text { white-space: pre-wrap; overflow-wrap: anywhere; }
-.thread .chip { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 1px 8px; border-radius: 99px; font: 500 11px var(--mono); }
-.thread .chip.waiting { background: var(--changed-soft); color: var(--changed); }
-.thread .chip.changed { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; background: var(--accent-soft); color: var(--accent); }
-.thread .chip .loader { width: 10px; height: 10px; }
+.thread.folded { right: auto; padding: 4px 12px; border-radius: 99px; font: 600 12px/20px var(--sans); color: var(--accent); }
+.thread.general.folded { left: 24px; }
+:is(.thread, .thread-item) .msg + .msg { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+:is(.thread, .thread-item) .who { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; margin-bottom: 2px; }
+:is(.thread, .thread-item) .who::before { content: ''; flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--changed); }
+:is(.thread, .thread-item) .msg.claude .who { color: var(--accent); }
+:is(.thread, .thread-item) .msg.claude .who::before { background: radial-gradient(circle at 30% 30%, var(--flame), var(--accent)); }
+:is(.thread, .thread-item) .who small { margin-left: auto; font-weight: 400; color: var(--muted); }
+:is(.thread, .thread-item) .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+:is(.thread, .thread-item) .chip { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 1px 8px; border-radius: 99px; font: 500 11px var(--mono); }
+:is(.thread, .thread-item) .chip.waiting { background: var(--changed-soft); color: var(--changed); }
+:is(.thread, .thread-item) .chip.changed { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; background: var(--accent-soft); color: var(--accent); }
+:is(.thread, .thread-item) .chip .loader { width: 10px; height: 10px; }
+:is(.thread, .thread-item) .chip.draft { background: var(--note-soft); color: var(--note); }
+.thread .msg.draft .text { opacity: .8; }
+.thread .tools { margin-top: 8px; }
+.thread .actions { position: absolute; top: -13px; right: 10px; display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 99px; background: var(--card); box-shadow: 0 2px 8px rgba(0,0,0,.10); opacity: 0; transition: opacity .15s; }
+.thread:hover .actions, .thread:focus-within .actions { opacity: 1; }
+.thread .actions button { border: 0; border-radius: 99px; padding: 2px 8px; font-size: 11.5px; background: none; }
+.thread .actions button:hover { background: var(--accent-soft); color: var(--accent); }
+.thread textarea { display: block; width: 100%; min-height: 30px; max-height: 160px; field-sizing: content; resize: none; font: inherit; font-size: 13px; border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: var(--bg); color: var(--fg); }
+.thread .tools .row { display: none; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+.thread:focus-within .tools .row, .thread .tools:has(textarea:not(:placeholder-shown)) .row { display: flex; }
+.panel .thread-item .t { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.panel .thread-item .t button { padding: 2px 10px; font-size: 12px; }
+.panel .thread-item.resolved { opacity: .75; }
+.tbadge { position: absolute; z-index: 41; height: 22px; padding: 0 8px; border: 0; border-radius: 11px; background: var(--accent); color: var(--on-accent); font: 700 11px/22px var(--sans); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
 .thread .earlier { display: block; margin-top: 6px; padding: 0; border: 0; background: none; color: var(--accent); font: 600 12px var(--sans); cursor: pointer; }
 .thread.arrive, .thread .msg.arrive { animation: thread-in .42s cubic-bezier(.2, .8, .2, 1) both; }
 @keyframes thread-in { from { opacity: 0; transform: translateX(40px); } }
@@ -395,7 +411,7 @@ body.sheet-open .margin, body:has(.panel.open) .margin { display: none; }
 .codes pre i { display: inline-block; width: 4ch; margin-right: 10px; text-align: right; color: var(--muted); font-style: normal; user-select: none; }
 .codes .miss { font-size: 12.5px; color: var(--muted); }
 .pop .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
-.pop button.primary, .panel button.primary, .qzone button.primary { background: var(--flame); color: var(--on-flame); border-color: var(--flame); font-weight: 600; }
+.pop button.primary, .panel button.primary, .qzone button.primary, .thread button.primary { background: var(--flame); color: var(--on-flame); border-color: var(--flame); font-weight: 600; }
 .panel .general { padding: 4px 16px 14px; border-bottom: 1px solid var(--line); }
 .panel .general textarea { width: 100%; min-height: 88px; font: inherit; font-size: 14px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--bg); color: var(--fg); resize: vertical; }
 .panel .general .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
@@ -927,15 +943,37 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       item.onclick = () => editDraft(i);
       list.appendChild(item);
     });
-    list.insertAdjacentHTML('beforeend', '<h5>Sent</h5>');
-    if (!sent.length) {
-      list.insertAdjacentHTML('beforeend', '<div class="empty">Nothing sent yet.</div>');
+    const threads = threadsOf().filter((t) => t.items.length).reverse();
+    panelSection(list, 'Open', threads.filter((t) => !t.resolved), 'No open threads.');
+    panelSection(list, 'Resolved', threads.filter((t) => t.resolved), 'Nothing resolved yet.');
+  }
+
+  function panelSection(list, title, threads, empty) {
+    list.insertAdjacentHTML('beforeend', `<h5>${title}</h5>`);
+    if (!threads.length) {
+      list.insertAdjacentHTML('beforeend', `<div class="empty">${empty}</div>`);
     }
-    [...sent].reverse().forEach((c) => {
-      const item = panelItem(c, c.reply ? 'answered' : 'waiting');
-      item.querySelector('.chip').textContent = c.reply ? 'answered' : 'waiting';
-      list.appendChild(item);
-    });
+    threads.forEach((t) => list.appendChild(threadItem(t)));
+  }
+
+  function threadItem(thread) {
+    const item = document.createElement('div');
+    item.className = thread.resolved ? 'item thread-item resolved' : 'item thread-item';
+    item.dataset.key = thread.key;
+    item.innerHTML = '<div class="t"></div>';
+    item.querySelector('.t').textContent = targetName({ target: thread.key });
+    messagesOf(thread).forEach((m) => item.append(messageEl(m)));
+    if (thread.resolved) {
+      const reopen = document.createElement('button');
+      reopen.textContent = 'Reopen';
+      reopen.onclick = (e) => {
+        e.stopPropagation();
+        resolveThread(thread.key, false);
+      };
+      item.querySelector('.t').append(reopen);
+    }
+    item.onclick = () => flashChange(thread);
+    return item;
   }
 
   const answerOf = (q) => sent.filter((c) => c.kind === 'answer' && c.qid === q.id).pop();
@@ -1518,7 +1556,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     if (open) {
       kind = sideIsOpen() ? 'side' : 'side-open';
     }
-    animate(kind, () => {
+    return animate(kind, () => {
       if (open && sheetOwner) {
         closeSheet();
       }
@@ -1885,28 +1923,203 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   const expandedKeys = new Set();
   const shownMsgs = new Set();
   const cards = new Map();
+  const showIndex = new Map();
   let anchors = new Map();
   let marginReady = false;
+  const FOLD_KEY = `${KEY}:folded`;
+  let foldedKeys = new Set();
+  try { foldedKeys = new Set(JSON.parse(localStorage.getItem(FOLD_KEY)) || []); } catch {}
+  const noMargin = matchMedia('(max-width: 860px)');
+
+  function setFolded(key, folded) {
+    if (folded) {
+      foldedKeys.add(key);
+    } else {
+      foldedKeys.delete(key);
+    }
+    try { localStorage.setItem(FOLD_KEY, JSON.stringify([...foldedKeys])); } catch {}
+    render();
+  }
+
+  function draftEl(c) {
+    const el = messageEl({ id: c.id, who: 'me', c: { ...c, reply: { text: '', lines: [] } } });
+    el.classList.add('draft');
+    el.append(chip('draft', 'not sent'));
+    return el;
+  }
 
   function threadCard(thread) {
     const card = document.createElement('div');
     card.className = thread.key === 'document' ? 'thread general' : 'thread';
     card.dataset.key = thread.key;
+    card.onclick = (e) => onThreadClick(e, thread.key);
     const msgs = messagesOf(thread);
+    if (foldedKeys.has(thread.key)) {
+      card.classList.add('folded');
+      card.textContent = `💬 ${msgs.length + thread.drafts.length}`;
+      card.title = 'Unfold';
+      return card;
+    }
     const earlier = msgs.length > 3 && !expandedKeys.has(thread.key) ? msgs.length - 1 : 0;
     msgs.slice(earlier).forEach((m) => card.append(messageEl(m)));
     if (earlier) {
       const more = document.createElement('button');
       more.className = 'earlier';
+      more.dataset.a = 'earlier';
       more.textContent = `▾ ${earlier} earlier in this thread`;
-      more.onclick = (e) => {
-        e.stopPropagation();
-        expandedKeys.add(thread.key);
-        renderMargin();
-      };
       card.append(more);
     }
+    thread.drafts.forEach((c) => card.append(draftEl(c)));
+    card.append(threadTools(thread));
     return card;
+  }
+
+  function threadTools(thread) {
+    const tools = document.createElement('div');
+    tools.className = 'tools';
+    tools.innerHTML = '<div class="actions"><button data-a="show">Show change</button><button data-a="fold">Fold</button><button data-a="resolve">Resolve</button></div><textarea rows="1" placeholder="Reply…"></textarea><div class="row"><button data-a="batch">Add to batch</button><button data-a="send" class="primary">Send now ⌘↵</button></div>';
+    tools.querySelector('[data-a=show]').hidden = !latestReply(thread)?.reply.lines?.length;
+    tools.querySelector('[data-a=resolve]').hidden = !thread.items.length;
+    tools.querySelector('textarea').onkeydown = (e) => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        replyFromCard(thread.key, true);
+      }
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        e.target.blur();
+      }
+    };
+    return tools;
+  }
+
+  function onThreadClick(e, key) {
+    if (e.target.closest('textarea')) {
+      return;
+    }
+    const thread = cards.get(key)?.thread;
+    if (foldedKeys.has(key)) {
+      setFolded(key, false);
+      return;
+    }
+    const actions = {
+      earlier: () => { expandedKeys.add(key); renderMargin(); },
+      show: () => showChange(thread),
+      fold: () => setFolded(key, true),
+      resolve: () => resolveThread(key, true),
+      send: () => replyFromCard(key, true),
+      batch: () => replyFromCard(key, false),
+    };
+    const action = actions[e.target.closest('[data-a]')?.dataset.a];
+    (action ?? (() => openThreadInPanel(thread)))();
+  }
+
+  // A reply carries Claude's last answer as its quote, so the agent sees which thread it continues.
+  function threadReply(thread, text) {
+    const last = latestReply(thread);
+    const quote = last ? `↩ ${last.reply.text}`.slice(0, 300) : '';
+    return { ...commentFrom(anchorFor(thread), text, quote), target: thread.key };
+  }
+
+  function replyFromCard(key, now) {
+    const entry = cards.get(key);
+    const ta = entry?.el.querySelector('.tools textarea');
+    const text = ta?.value.trim();
+    if (!text) {
+      return;
+    }
+    ta.value = '';
+    const c = threadReply(entry.thread, text);
+    if (now) {
+      post([c]);
+      return;
+    }
+    drafts.push(c);
+    persist();
+    render();
+  }
+
+  async function resolveThread(key, value) {
+    if (value) {
+      resolved[key] = new Date().toISOString();
+    } else {
+      delete resolved[key];
+    }
+    render();
+    try {
+      await fetch('resolve', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ target: key, resolved: value }) });
+    } catch {}
+  }
+
+  function flashInto(el) {
+    el.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 1200);
+  }
+
+  function showChange(thread) {
+    const els = changedElements(latestReply(thread)?.reply.lines ?? []);
+    if (!els.length) {
+      return;
+    }
+    const i = (showIndex.get(thread.key) ?? 0) % els.length;
+    showIndex.set(thread.key, i + 1);
+    flashInto(els[i]);
+  }
+
+  function flashChange(thread) {
+    const el = changedElements(latestReply(thread)?.reply.lines ?? [])[0] ?? anchorFor(thread);
+    if (el) {
+      flashInto(el);
+    }
+  }
+
+  function openThreadInPanel(thread) {
+    if (!thread) {
+      return;
+    }
+    flashChange(thread);
+    togglePanel(true).then(() => {
+      const item = [...document.querySelectorAll('.panel .thread-item')].find((el) => el.dataset.key === thread.key);
+      item?.scrollIntoView({ block: 'nearest' });
+      item?.classList.add('flash');
+      setTimeout(() => item?.classList.remove('flash'), 1200);
+    });
+  }
+
+  let badges = [];
+  let badgeSig = null;
+
+  // A thread that is not in the margin, resolved or on a narrow screen, keeps a counter on its element.
+  function renderBadges() {
+    const off = threadsOf().filter((t) => t.items.length && (t.resolved || noMargin.matches)).map((t) => [t, anchorFor(t)]).filter(([, a]) => a);
+    const sig = JSON.stringify(off.map(([t]) => [t.key, messagesOf(t).length]));
+    if (sig !== badgeSig) {
+      badgeSig = sig;
+      badges.forEach(([b]) => b.remove());
+      badges = off.map(([t, anchor]) => [badge(t), anchor]);
+    }
+    positionBadges();
+  }
+
+  function badge(thread) {
+    const b = document.createElement('button');
+    b.className = 'tbadge';
+    b.textContent = `💬 ${messagesOf(thread).length}`;
+    b.title = thread.resolved ? 'Resolved thread · open in the panel' : 'Open the thread';
+    b.onclick = (e) => {
+      e.stopPropagation();
+      openThreadInPanel(threadsOf().find((t) => t.key === thread.key));
+    };
+    document.body.appendChild(b);
+    return b;
+  }
+
+  function positionBadges() {
+    badges.forEach(([b, el]) => {
+      const r = el.getBoundingClientRect();
+      b.style.left = `${r.right + scrollX - b.offsetWidth + 8 - (el.dataset.cn ? 28 : 0)}px`;
+      b.style.top = `${r.top + scrollY - 11}px`;
+    });
   }
 
   function markArrivals(card, isNew) {
@@ -1921,11 +2134,11 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     });
   }
 
-  const threadSig = (t) => JSON.stringify([t.items.map((c) => [c.id, c.reply?.text ?? null, c.reply?.lines ?? null]), expandedKeys.has(t.key)]);
+  const threadSig = (t) => JSON.stringify([t.items.map((c) => [c.id, c.reply?.text ?? null, c.reply?.lines ?? null]), t.drafts.map((c) => [c.id, c.text]), expandedKeys.has(t.key), foldedKeys.has(t.key)]);
 
   // A card is rebuilt only when its thread changed, so a poll never restarts an animation or drops hover.
   function renderMargin() {
-    const open = threadsOf().filter((t) => t.items.length && !t.resolved);
+    const open = threadsOf().filter((t) => (t.items.length || t.drafts.length) && !t.resolved);
     const keys = new Set(open.map((t) => t.key));
     cards.forEach((entry, key) => {
       if (!keys.has(key)) {
@@ -1943,6 +2156,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       const el = threadCard(thread);
       markArrivals(el, !entry);
       if (entry) {
+        keepTyping(entry.el, el);
         entry.el.replaceWith(el);
       } else {
         $('.margin').append(el);
@@ -1954,6 +2168,18 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       small.textContent = ago(small.dataset.at);
     });
     layoutMargin();
+    renderBadges();
+  }
+
+  function keepTyping(from, to) {
+    const old = from.querySelector('.tools textarea');
+    const next = to.querySelector('.tools textarea');
+    if (old && next && old.value) {
+      next.value = old.value;
+    }
+    if (old && next && document.activeElement === old) {
+      requestAnimationFrame(() => next.focus());
+    }
   }
 
   function layoutThreads(wanted, heights, gap = 8) {
@@ -2253,6 +2479,8 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   }).observe($('.bar'));
   document.addEventListener('mouseover', linkFromHover);
   addEventListener('resize', layoutMargin);
+  addEventListener('resize', positionBadges);
+  noMargin.addEventListener('change', render);
   document.fonts.ready.then(layoutMargin);
   new ResizeObserver(() => layoutMargin()).observe($('main'));
 
