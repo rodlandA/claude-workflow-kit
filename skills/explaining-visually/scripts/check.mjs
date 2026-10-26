@@ -313,6 +313,14 @@ async function checkServerThreads(url, dir) {
   editBody(dir, '<h1', '<!-- shift -->\n<h1');
   s = await state(url);
   check(Boolean(ra.lines) && s.sent.find((c) => c.id === 'ta').reply.lines[0] === ra.lines[0] + 1, 'threads: owned lines follow the body when lines above move');
+  await postComments(url, [{ id: 'tc', target, line: 60, text: 'c' }]);
+  editBody(dir, '<div class="box new"><b>Cookie auth middleware</b><code>api/auth/cookie.ts</code></div>', '<div class="box new"><b>Cookie auth middleware</b><code>api/auth/cookie.ts</code></div>\n        <div class="arrow"></div>');
+  replyTo(dir, 'tc', 'added an arrow');
+  const body = fs.readFileSync(path.join(dir, 'example.body.html'), 'utf8').split('\n');
+  const added = body.findIndex((l) => l.includes('Cookie auth middleware')) + 2;
+  const firstCopy = body.indexOf('        <div class="arrow"></div>') + 1;
+  const credited = (await state(url)).sent.find((c) => c.id === 'tc').reply.lines;
+  check(credited.includes(added) && !credited.includes(firstCopy), 'threads: a repeated line is credited where it was added, not to its first copy');
   check((await postResolve(url, { target, resolved: true })) === 200, 'threads: resolve accepts a target');
   check(Boolean((await state(url)).resolved?.[target]), 'threads: state lists resolved targets');
   check((await postResolve(url, { target, resolved: false })) === 200 && !(await state(url)).resolved?.[target], 'threads: a resolved target can be reopened');
@@ -590,6 +598,104 @@ async function checkExpand(browser, url, dir) {
   resetPage(dir);
 }
 
+async function cardBesideStep(page, key) {
+  return page.evaluate((k) => {
+    const card = [...document.querySelectorAll('.margin .thread')].find((el) => el.dataset.key === k);
+    const tie = [...document.querySelectorAll('.margin .tie')].find((el) => el.dataset.key === k);
+    const step = document.querySelector('main .step');
+    return Boolean(card && tie) && Math.abs(card.getBoundingClientRect().top - step.getBoundingClientRect().top) < 40 && Math.abs(tie.getBoundingClientRect().left - step.getBoundingClientRect().right) <= 4;
+  }, key);
+}
+
+async function checkReviewFixes(browser, url, dir) {
+  resetPage(dir);
+  let page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const step = await page.evaluate(() => {
+    const el = document.querySelector('main .step');
+    return { target: el.dataset.ct, line: Number(el.dataset.line) };
+  });
+  await postComments(url, [{ id: 'fx1', ...step, text: 'rename' }]);
+  editBody(dir, 'Add cookie middleware beside bearer auth', 'Add the cookie middleware');
+  replyTo(dir, 'fx1', 'Renamed.');
+  await page.waitForTimeout(2600);
+  await postComments(url, [{ id: 'fx2', ...step, text: 'thanks' }]);
+  replyTo(dir, 'fx2', 'You are welcome.');
+  await page.waitForTimeout(2600);
+  check(await cardBesideStep(page, step.target), 'fixes: a renamed element keeps its thread after a follow-up with no edit');
+  await postComments(url, [{ id: 'fx4', kind: 'approve', target: 'document', line: null, text: '', version: 'x' }]);
+  replyTo(dir, 'fx4', 'Approved — next: step 1');
+  await page.waitForTimeout(3500);
+  check(await page.evaluate(() => JSON.parse(localStorage.getItem('explainer:example:seen')).includes('fx4')), 'fixes: an approval reply does not leave an unread count');
+  await page.locator('#list').click();
+  await page.waitForTimeout(700);
+  check((await page.locator('.panel .list').textContent()).includes('Approved — next: step 1'), 'fixes: the approval reply shows in the panel');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  await postComments(url, [{ id: 'fx3', target: 'Steps › Login sets the cookie', line: step.line + 1, text: 'and this one?' }]);
+  editBody(dir, '<h2>Steps</h2>', '<h2>Rollout steps</h2>');
+  await page.waitForTimeout(2600);
+  check(await page.evaluate(() => {
+    const tie = [...document.querySelectorAll('.margin .tie')].find((el) => el.dataset.key === 'Steps › Login sets the cookie');
+    const row = document.querySelectorAll('main .step')[1];
+    return Boolean(tie) && Math.abs(tie.getBoundingClientRect().left - row.getBoundingClientRect().right) <= 4;
+  }), 'fixes: a thread stays beside its element after its section is renamed');
+  await page.locator('.qcard textarea').click();
+  await page.keyboard.type('abc');
+  editBody(dir, '<p class="lede">', '<p class="lede">Again. ');
+  await page.waitForTimeout(2600);
+  await page.keyboard.type('def');
+  check((await page.locator('.qcard textarea').inputValue()) === 'abcdef', 'fixes: typing in a question survives a body change');
+  await page.locator('.qcard textarea').fill('');
+  await page.evaluate(() => document.querySelector('main .box').scrollIntoView({ block: 'center' }));
+  await page.locator('main .box').first().click();
+  await page.waitForTimeout(400);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  await page.locator('.sheet .ask textarea').click();
+  await page.keyboard.type('abc');
+  editBody(dir, '<p class="lede">', '<p class="lede">More. ');
+  await page.waitForTimeout(2600);
+  await page.keyboard.type('def');
+  check((await page.locator('.sheet .ask textarea').inputValue()) === 'abcdef', 'fixes: typing in the Info sheet survives a body change');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  const steps = page.locator('main .step').nth(2);
+  await steps.click();
+  await page.waitForTimeout(400);
+  await page.locator('.pop textarea').fill('where?');
+  editBody(dir, '<h2>Rollout steps</h2>', '<h2>Rollout steps</h2>\n<p>Shifted.</p>');
+  await page.waitForTimeout(2600);
+  const now = await steps.getAttribute('data-line');
+  await page.locator('.pop [data-a=send]').click();
+  await page.waitForTimeout(600);
+  check((await state(url)).sent.find((c) => c.text === 'where?')?.line === Number(now), 'fixes: a comment sent after its section moved carries the current line');
+  check(await page.locator('.sheet').isHidden(), 'fixes: the sheet still makes way after a body change');
+  const card = page.locator(`.margin .thread[data-key="${step.target}"]`);
+  const text = await card.locator('.msg.claude .text').last().boundingBox();
+  await page.mouse.move(text.x + 2, text.y + 6);
+  await page.mouse.down();
+  await page.mouse.move(text.x + 60, text.y + 6, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForTimeout(600);
+  check(await page.locator('.panel').isHidden(), 'fixes: selecting text in a thread does not open the panel');
+  await page.close();
+  page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(url);
+  await page.waitForTimeout(1500);
+  await postComments(url, [{ id: 'fx5', target: 'document', line: null, text: 'overall?' }]);
+  replyTo(dir, 'fx5', 'Overall fine.');
+  await page.waitForTimeout(2600);
+  check((await page.title()).startsWith('(1)'), '390px: a general reply counts as unread');
+  await page.locator('#list').click();
+  await page.waitForTimeout(2500);
+  check(!(await page.title()).startsWith('('), '390px: opening the panel on a general reply marks it read');
+  await page.close();
+  resetPage(dir);
+}
+
 async function checkRemote(dir) {
   const { child, found } = await startServer(dir, { port: '4891', extra: ['--remote', 'tunnel'], until: /remote: (\S+)/ });
   try {
@@ -743,6 +849,7 @@ async function main() {
     await checkThreadActions(browser, url, dir);
     await checkOffscreen(browser, url, dir);
     await checkExpand(browser, url, dir);
+    await checkReviewFixes(browser, url, dir);
     await checkRemote(dir);
     await checkUpdate(browser, dir);
   } finally {

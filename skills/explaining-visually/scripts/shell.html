@@ -971,6 +971,11 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     });
     const threads = threadsOf().filter((t) => t.items.length).reverse();
     panelSection(list, 'Open', threads.filter((t) => !t.resolved), 'No open threads.');
+    const approvals = sent.filter((c) => c.kind === 'approve' && c.reply);
+    if (approvals.length) {
+      list.insertAdjacentHTML('beforeend', '<h5>Approval</h5>');
+      approvals.forEach((c) => list.appendChild(panelItem(c, 'answered')));
+    }
     panelSection(list, 'Resolved', threads.filter((t) => t.resolved), 'Nothing resolved yet.');
   }
 
@@ -1565,9 +1570,11 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     if (lent) {
       openSheet(el, defaultTab(el));
     }
+    // The page may have swapped el since the popover opened; the live element has the current line.
+    const live = () => findTarget(el.dataset.ct) ?? el;
     // A sheet that only opened alongside the comment makes way, so its thread shows in the margin.
     const makeWay = () => {
-      if (lent && sheetOwner === el) {
+      if (lent && sheetOwner?.dataset.ct === el.dataset.ct) {
         closeSheet();
       }
     };
@@ -1575,8 +1582,8 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       anchor: el,
       target: el.dataset.ct,
       quote,
-      onSend: (text) => { makeWay(); return post([commentFrom(el, text, quote)]); },
-      onBatch: (text) => { makeWay(); drafts.push(commentFrom(el, text, quote)); persist(); render(); },
+      onSend: (text) => { makeWay(); return post([commentFrom(live(), text, quote)]); },
+      onBatch: (text) => { makeWay(); drafts.push(commentFrom(live(), text, quote)); persist(); render(); },
       tools: !sheetFollows && !el.closest('aside.more'),
     });
   }
@@ -1786,12 +1793,13 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   function placeScriptNodes() {
     const zone = $('.qzone');
-    if (zone) {
+    if (zone && $('main').firstElementChild !== zone) {
       $('main').prepend(zone);
     }
     const note = $('.draft-note');
-    if (note) {
-      ($('main > .lede') ?? $('main > h1') ?? zone).after(note);
+    const before = $('main > .lede') ?? $('main > h1') ?? zone;
+    if (note && before && before.nextElementSibling !== note) {
+      before.after(note);
     }
   }
 
@@ -1829,6 +1837,10 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       closeSheet();
       return;
     }
+    const shown = $('.sheet-body aside.more');
+    if (owner === sheetOwner && (shown ?? null) === (mores.get(owner) ?? null)) {
+      return;
+    }
     sheetOwner.classList.remove('sheet-owner');
     sheetOwner = owner;
     owner.classList.add('sheet-owner');
@@ -1837,6 +1849,20 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     const ta = $('.sheet .ask textarea');
     if (ta) {
       ta.value = asked;
+    }
+  }
+
+  // Moving a node blurs whatever the reader was typing in; the caret goes back where it was.
+  function keepingFocus(change) {
+    const active = document.activeElement;
+    const typing = active?.matches?.('textarea, input');
+    const [start, end] = typing ? [active.selectionStart, active.selectionEnd] : [0, 0];
+    const sheetAsk = active?.closest?.('.sheet .ask');
+    change();
+    const target = sheetAsk && !active.isConnected ? $('.sheet .ask textarea') : active;
+    if (typing && target?.isConnected && document.activeElement !== target) {
+      target.focus({ preventScroll: true });
+      target.setSelectionRange(start, end);
     }
   }
 
@@ -1859,10 +1885,10 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     bodyBusy = true;
     try {
       const next = await fetchMain();
-      keepingScroll(() => {
+      keepingFocus(() => keepingScroll(() => {
         applyBody(next);
         afterBodyChange();
-      });
+      }));
       bodyVersion = v;
     } finally {
       bodyBusy = false;
@@ -1903,18 +1929,23 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     return [...byKey.values()].map((t) => ({ ...t, resolved: Boolean(resolved[t.key]) && timeOf(resolved[t.key]) >= t.latestAt }));
   }
 
-  // A renamed element is found again through what the reply changed, then through its section.
+  // A renamed element is found again by its source line, then through what a reply changed, then its section.
   function anchorFor(thread) {
     if (thread.key === 'document') {
       return null;
     }
-    const section = thread.key.split(' › ')[0];
     const found = findTarget(thread.key);
-    return (found && ownerOf(found))
-      ?? changedElements(latestReply(thread)?.reply.lines ?? [])[0]
-      ?? [...document.querySelectorAll('main section > h2')].find((h) => h.textContent.trim() === section)
-      ?? null;
+    return (found && ownerOf(found)) ?? lineAnchor(thread) ?? replyAnchor(thread) ?? sectionAnchor(thread);
   }
+
+  function lineAnchor(thread) {
+    const line = thread.items.find((c) => c.now)?.now;
+    const el = line && document.querySelector(`main [data-line="${line}"]`);
+    return el ? ownerOf(el.closest('[data-ct]') ?? el) : null;
+  }
+
+  const replyAnchor = (thread) => thread.items.filter((c) => c.reply?.lines?.length).reverse().map((c) => changedElements(c.reply.lines)[0]).find(Boolean) ?? null;
+  const sectionAnchor = (thread) => [...document.querySelectorAll('main section > h2')].find((h) => h.textContent.trim() === thread.key.split(' › ')[0]) ?? null;
 
   function ago(iso) {
     const seconds = (Date.now() - timeOf(iso)) / 1000;
@@ -2064,7 +2095,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   }
 
   function onThreadClick(e, key) {
-    if (e.target.closest('textarea')) {
+    if (e.target.closest('textarea') || getSelection()?.toString()) {
       return;
     }
     const thread = cards.get(key)?.thread;
@@ -2081,7 +2112,11 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       batch: () => replyFromCard(key, false),
     };
     const action = actions[e.target.closest('[data-a]')?.dataset.a];
-    (action ?? (() => openThreadInPanel(thread)))();
+    if (action) {
+      action();
+    } else if (e.target.closest('.msg')) {
+      openThreadInPanel(thread);
+    }
   }
 
   // A reply carries Claude's last answer as its quote, so the agent sees which thread it continues.
@@ -2109,11 +2144,29 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     render();
   }
 
+  // A poll already in flight carries the old map; the reader's choice holds until the server agrees.
+  const pendingResolve = new Map();
+
+  function mergeResolved(server) {
+    const merged = { ...server };
+    pendingResolve.forEach((at, key) => {
+      if (Boolean(server[key]) === Boolean(at)) {
+        pendingResolve.delete(key);
+      } else if (at) {
+        merged[key] = at;
+      } else {
+        delete merged[key];
+      }
+    });
+    return merged;
+  }
+
   async function resolveThread(key, value) {
-    if (value) {
-      resolved[key] = new Date().toISOString();
-    } else {
-      delete resolved[key];
+    const at = value ? new Date().toISOString() : null;
+    pendingResolve.set(key, at);
+    resolved = mergeResolved(resolved);
+    if (at) {
+      resolved[key] = at;
     }
     render();
     try {
@@ -2144,6 +2197,11 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     }
   }
 
+  function revealUnseenInPanel() {
+    const keys = new Set(unseen().map((c) => c.target));
+    [...document.querySelectorAll('.panel .thread-item')].find((el) => keys.has(el.dataset.key))?.scrollIntoView({ block: 'nearest' });
+  }
+
   function openThreadInPanel(thread) {
     if (!thread) {
       return;
@@ -2171,6 +2229,9 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   // Where a reader would notice a reply: its thread in the margin, else what it changed, else its element.
   function seenTarget(c) {
+    if ($('.panel').classList.contains('open')) {
+      return [...document.querySelectorAll('.panel .thread-item')].find((el) => el.dataset.key === c.target) ?? null;
+    }
     const card = cards.get(c.target)?.el;
     if (card?.offsetParent && !card.classList.contains('folded')) {
       return card;
@@ -2193,7 +2254,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     const done = unseen().filter((c) => {
       const el = seenTarget(c);
       if (!el) {
-        return c.kind === 'answer';
+        return !inThread(c);
       }
       if (!halfVisible(el)) {
         visibleSince.delete(c.id);
@@ -2499,7 +2560,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       loadSeen(state.sent);
       sent = state.sent;
       unfoldUnseen();
-      resolved = state.resolved ?? {};
+      resolved = mergeResolved(state.resolved ?? {});
       render();
       motion = true;
     } catch {
@@ -2582,7 +2643,13 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   cbtn.innerHTML = ICON;
   cbtn.onmousedown = (e) => e.preventDefault();
   cbtn.onclick = () => { if (hot) { commentOn(hot); } };
-  $('#list').onclick = () => togglePanel(!$('.panel').classList.contains('open'));
+  $('#list').onclick = () => {
+    if ($('.panel').classList.contains('open')) {
+      togglePanel(false);
+      return;
+    }
+    togglePanel(true).then(revealUnseenInPanel);
+  };
   $('#status').onclick = showStatusHelp;
   $('#theme').onclick = toggleTheme;
   systemDark.addEventListener('change', showThemeButton);

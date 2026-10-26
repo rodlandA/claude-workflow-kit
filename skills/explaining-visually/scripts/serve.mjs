@@ -115,17 +115,28 @@ function attributeReply(slug) {
   const previous = fs.existsSync(snapshotOf(slug)) ? fs.readFileSync(snapshotOf(slug), 'utf8') : current;
   fs.writeFileSync(snapshotOf(slug), current);
   const lines = current.split('\n');
-  return changedLines(previous, current).map((n) => lines[n - 1]);
+  return changedLines(previous, current).map((n) => ({ text: lines[n - 1], line: n }));
 }
 
-// Lines are stored by content, so they still point at the right place after later edits move them.
-function locateLines(body, texts) {
+// Lines are stored by content and position, so they still point at the right place after later edits move them;
+// a repeated line like `<div class="col">` resolves to the copy nearest where it was.
+function locateLines(body, entries) {
   const at = new Map();
   body.split('\n').forEach((line, i) => at.set(line, [...(at.get(line) ?? []), i + 1]));
-  return texts.flatMap((text) => at.get(text)?.shift() ?? []);
+  return entries.flatMap((entry) => {
+    const { text, line } = typeof entry === 'string' ? { text: entry, line: 0 } : entry;
+    const spots = at.get(text);
+    if (!spots?.length) {
+      return [];
+    }
+    const best = spots.reduce((a, b) => (Math.abs(b - line) < Math.abs(a - line) ? b : a));
+    spots.splice(spots.indexOf(best), 1);
+    return [best];
+  });
 }
 
 const replyView = (r, body) => (r ? { text: r.text, at: r.at, lines: locateLines(body, r.changed ?? []) } : null);
+const lineNow = (c, body) => (c.lineText ? locateLines(body, [{ text: c.lineText, line: Number(c.line) || 0 }])[0] ?? null : null);
 
 function pending() {
   const lines = slugs().flatMap((slug) => {
@@ -301,7 +312,7 @@ function pageStore() {
     return {
       v: String(fs.statSync(bodyOf(slug)).mtimeMs),
       listening: isWatched(slug),
-      sent: readComments(slug).map((c) => ({ ...c, reply: replyView(replies[c.id], current) })),
+      sent: readComments(slug).map((c) => ({ ...c, now: lineNow(c, current), reply: replyView(replies[c.id], current) })),
       resolved: readJson(sidecar(slug, 'resolved.json'), {}),
     };
   };
@@ -506,7 +517,9 @@ function serve() {
   };
   const receive = (slug, req, res) => readBody(req, res, (data) => {
     const sentAt = new Date().toISOString();
-    const lines = (data.comments ?? []).map((c) => JSON.stringify({ sentAt, ...c }));
+    const body = fs.readFileSync(bodyOf(slug), 'utf8').split('\n');
+    const lineText = (c) => (Number(c.line) > 0 ? body[Number(c.line) - 1] : undefined);
+    const lines = (data.comments ?? []).map((c) => JSON.stringify({ sentAt, lineText: lineText(c), ...c }));
     keepSnapshot(slug);
     fs.appendFileSync(sidecar(slug, 'comments.jsonl'), `${lines.join('\n')}\n`);
     return { ok: true, count: lines.length };
