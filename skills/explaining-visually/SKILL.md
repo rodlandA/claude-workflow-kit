@@ -21,7 +21,7 @@ If the user has not asked for a visual explainer, your first reply is one questi
 
 A fragment — no `<html>`, `<style>` or `<script>`. Content in the conversation's language; identifiers as-is.
 
-**Plan** (before anything is built) — `<h1 data-mode="plan">`, then: `<p class="lede">` with the change in one sentence; the questions (below); `<ul class="tldr">` Why / What changes / Size; **Today** as a `.flow`; **After** as `.legend` + `.cols` Before/After with boxes `new` / `changed` / `removed`; **Steps** as `<ol class="steps">`, one commit-sized `.step` each; **Open decisions**, one `.callout.decision` each, only for what nobody can settle yet; **Where** as `table.files`.
+**Plan** (before anything is built) — `<h1 data-mode="plan">`, then: `<p class="lede">` with the change in one sentence; the questions (below); `<ul class="tldr">` Why / What changes / Size; **Today** as a `.flow`; **After** as `.cols` Before/After with boxes `new` / `changed` / `removed`; **Steps** as `<ol class="steps">`, one commit-sized `.step` each; **Open decisions**, one `.callout.decision` each, only for what nobody can settle yet; **Where** as `table.files`.
 
 **As-built** (what exists) — `<h1 data-mode="as-built">`, then: lede and a 3–4 item `.tldr`; **Map**, one overview `.flow` or SVG; **one section per concept**, visual first, then at most two sentences and a `file:line`; **Traps** as `.callout.trap`; **Where** as `table.files`.
 
@@ -65,6 +65,8 @@ An element whose detail does not fit its box text and its section's prose gets t
 | Callouts | `<div class="callout trap\|decision\|question"><b>Label</b>text</div>` |
 | Lookup table | `<table class="files">`, any short two- or three-column table |
 | Anything else | `<figure><svg aria-label="…">` with classes `node` / `edge` / `muted`, colours only as `var(--…)`, `data-c="Name"` on each `<g>` |
+
+Colour is a box's state against today, never decoration: `new` / `changed` / `removed` belong to a plan's After and Steps; `focus` marks what its section is about, and is the only colour on an as-built page. The page puts a legend of the states used above each coloured group.
 
 Everything is commentable automatically. `example.body.html` shows a full plan.
 

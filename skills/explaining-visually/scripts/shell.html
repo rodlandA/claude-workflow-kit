@@ -21,12 +21,23 @@
   --accent-soft: light-dark(#f0dccf, #3d3a3a);
   --on-accent: light-dark(#eee9df, #1b2632);
   --flame: #ffb162; --on-flame: #1b2632;
-  --new: light-dark(#e08a2e, #ffb162);
-  --new-soft: light-dark(#ffe4c4, #4a3a2a);
-  --changed: light-dark(#2c3b4d, #a9bdd4);
-  --changed-soft: light-dark(#dcdfe2, #3a5069);
-  --removed: light-dark(#a35139, #e8896d);
-  --removed-soft: light-dark(#f1d9cc, #4b2e27);
+  --truffle: #a35139; --blue-fantastic: #2c3b4d; --abyssal: #1b2632; --palladian: #eee9df;
+  /* Steps 100-400 mix the hue into Palladian (12/30/52/76%), 600-900 into Abyssal (76/52/30/12%); derive new steps the same way. */
+  --flame-100: color-mix(in oklab, var(--flame) 12%, var(--palladian));
+  --flame-600: color-mix(in oklab, var(--flame) 76%, var(--abyssal));
+  --flame-800: color-mix(in oklab, var(--flame) 30%, var(--abyssal));
+  --truffle-100: color-mix(in oklab, var(--truffle) 12%, var(--palladian));
+  --truffle-300: color-mix(in oklab, var(--truffle) 52%, var(--palladian));
+  --truffle-800: color-mix(in oklab, var(--truffle) 30%, var(--abyssal));
+  --blue-fantastic-100: color-mix(in oklab, var(--blue-fantastic) 12%, var(--palladian));
+  --blue-fantastic-200: color-mix(in oklab, var(--blue-fantastic) 30%, var(--palladian));
+  --blue-fantastic-400: color-mix(in oklab, var(--blue-fantastic) 76%, var(--palladian));
+  --new: light-dark(var(--flame-600), var(--flame));
+  --new-soft: light-dark(var(--flame-100), var(--flame-800));
+  --changed: light-dark(var(--blue-fantastic), var(--blue-fantastic-200));
+  --changed-soft: light-dark(var(--blue-fantastic-100), var(--blue-fantastic-400));
+  --removed: light-dark(var(--truffle), var(--truffle-300));
+  --removed-soft: light-dark(var(--truffle-100), var(--truffle-800));
   --note: light-dark(#2c3b4d, #ffb162);
   --note-soft: light-dark(#dcdfe2, #4a3a2a);
   --on-note: light-dark(#eee9df, #1b2632);
@@ -98,7 +109,7 @@ p { max-width: 72ch; }
 .box.changed, .step.changed { border-color: var(--changed); background: var(--changed-soft); }
 .box.removed, .step.removed { border-color: var(--removed); background: var(--removed-soft); }
 .box.removed b { text-decoration: line-through; text-decoration-color: var(--removed); }
-.box.focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.box.focus { border-color: var(--fg); box-shadow: 0 0 0 3px color-mix(in oklab, var(--fg) 14%, transparent); }
 .arrow { display: flex; flex-direction: column; align-items: center; color: var(--muted); font-size: 11.5px; min-width: 44px; text-align: center; }
 .arrow::after { content: "\2192"; font-size: 20px; line-height: 1; }
 .flow.v .arrow::after { content: "\2193"; }
@@ -114,6 +125,7 @@ p { max-width: 72ch; }
 .legend .new::before { border-color: var(--new); background: var(--new-soft); }
 .legend .changed::before { border-color: var(--changed); background: var(--changed-soft); }
 .legend .removed::before { border-color: var(--removed); background: var(--removed-soft); }
+.legend .focus::before { border-color: var(--fg); }
 
 ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 16px 0; display: grid; gap: 10px; }
 .step { counter-increment: s; position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px 12px 52px; }
@@ -856,6 +868,36 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
         mores.set(owner, aside);
         owner.classList.add('has-more');
       }
+    });
+  }
+
+  const STATES = ['new', 'changed', 'removed', 'focus'];
+  const COLOURED = STATES.map((s) => `:is(.box, .step).${s}`).join(', ');
+  const GROUPS = '.flow, .cols, ol.steps';
+
+  function legendHolder(el) {
+    const stop = el.closest('aside.more');
+    let holder = el;
+    for (let up = el.parentElement.closest(GROUPS); up && (!stop || stop.contains(up)); up = up.parentElement.closest(GROUPS)) {
+      holder = up;
+    }
+    return holder;
+  }
+
+  function addLegends() {
+    new Set([...document.querySelectorAll(`main ${COLOURED}`)].map(legendHolder)).forEach((holder) => {
+      if (holder.previousElementSibling?.matches('.legend')) {
+        return;
+      }
+      const legend = document.createElement('div');
+      legend.className = 'legend';
+      STATES.filter((s) => holder.matches(`.${s}`) || holder.querySelector(`:is(.box, .step).${s}`)).forEach((s) => {
+        const key = document.createElement('span');
+        key.className = s;
+        key.textContent = s;
+        legend.append(key);
+      });
+      holder.before(legend);
     });
   }
 
@@ -1809,6 +1851,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     mores.clear();
     document.querySelectorAll('.has-more').forEach((el) => el.classList.remove('has-more'));
     collectMores();
+    addLegends();
     addSectionButtons();
     buildTocLinks();
     questions = [...document.querySelectorAll('main .q[id]')];
@@ -2709,6 +2752,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   requestAnimationFrame(() => requestAnimationFrame(() => $('#theme').classList.add('ready')));
   tagTargets();
   collectMores();
+  addLegends();
   setupQuestions();
   addSectionButtons();
   buildToc();

@@ -846,6 +846,32 @@ async function checkUpdate(browser, dir) {
   }
 }
 
+const legendOf = (page, sel) => page.evaluate((s) => [...document.querySelectorAll(`${s} .legend`)].map((l) => [...l.children].map((c) => c.className).join(',')), sel);
+
+async function checkLegend(browser, url, dir) {
+  resetPage(dir);
+  editBody(dir, '<div class="box"><b>Login form</b>', '<div class="box focus"><b>Login form</b>');
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  check((await legendOf(page, '#after')).join('|') === 'new,changed,removed', 'legend: colours without a legend get one naming exactly the states used');
+  check((await legendOf(page, '#today')).join('|') === 'focus', 'legend: focus has its own legend entry');
+  for (const scheme of ['light', 'dark']) {
+    await page.emulateMedia({ colorScheme: scheme });
+    const borders = await page.evaluate(() => ['new', 'changed', 'removed', 'focus'].map((k) => getComputedStyle(document.querySelector(`main .box.${k}`)).borderTopColor));
+    check(new Set(borders).size === 4, `legend: the four states have four different colours in ${scheme} mode`);
+  }
+  resetPage(dir);
+  editBody(dir, '<div class="cols">', '<div class="legend"><span class="new">new</span></div>\n  <div class="cols">');
+  await page.reload();
+  await page.waitForTimeout(1200);
+  check((await legendOf(page, '#after')).join('|') === 'new', 'legend: a legend the body writes is not doubled');
+  await page.close();
+  const shell = fs.readFileSync(path.join(here, 'shell.html'), 'utf8');
+  const states = shell.match(/^\s*--(new|changed|removed)(-soft)?:.*$/gm) ?? [];
+  check(states.length === 6 && states.every((l) => !l.includes('#')), 'palette: state colours are derived from the palette, not hand-picked');
+}
+
 async function main() {
   check(cssBalanced(), 'shell.html: CSS braces balance');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'explainer-check-'));
@@ -870,6 +896,7 @@ async function main() {
     await checkOffscreen(browser, url, dir);
     await checkExpand(browser, url, dir);
     await checkReviewFixes(browser, url, dir);
+    await checkLegend(browser, url, dir);
     await checkRemote(dir);
     await checkUpdate(browser, dir);
   } finally {
