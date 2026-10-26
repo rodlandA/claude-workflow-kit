@@ -405,9 +405,6 @@ svg .delta > :is(rect, circle, ellipse, path, polygon) { stroke: var(--new); str
 .sheet .ask button { font: inherit; font-size: 13px; border-radius: 8px; padding: 6px 14px; cursor: pointer; background: var(--flame); color: var(--on-flame); border: 1px solid var(--flame); font-weight: 600; }
 .sheet .ask button:disabled { opacity: .45; cursor: default; }
 @media (min-width: 840px) { body.sheet-open, body:has(.panel.open) { padding-right: var(--sheet-w); } }
-body.sheet-open .margin, body:has(.panel.open) .margin { display: none; }
-@media (min-width: 1251px) { body.sheet-open .layout, body:has(.panel.open) .layout { grid-template-columns: 230px minmax(0, 920px); } }
-@media (min-width: 840px) and (max-width: 1250px) { body.sheet-open .layout, body:has(.panel.open) .layout { grid-template-columns: minmax(0, 1fr); } }
 .sheet .handle, .panel .handle { display: none; justify-content: center; align-items: center; height: 48px; flex: none; cursor: grab; touch-action: none; }
 .sheet .handle::before, .panel .handle::before { content: ''; width: 32px; height: 4px; border-radius: 2px; background: var(--muted); opacity: .5; }
 .scrim { display: none; }
@@ -477,7 +474,9 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   :is(.sheet, .panel)[data-snap="3"] { height: calc(100dvh - 56px); }
 }
 
-@media (max-width: 1250px) {
+/* The layout answers to the width left beside an open side sheet, so the margin goes only when it has no room */
+.page { container-type: inline-size; }
+@container (max-width: 1250px) {
   nav.toc .keys { display: none; }
   .layout { --margin-w: 260px; grid-template-columns: minmax(0, 1fr) var(--margin-w); column-gap: 32px; row-gap: 0; padding: 0 16px; margin-left: 0; }
   nav.toc { grid-column: 1 / -1; position: static; max-height: none; display: flex; gap: 8px; margin: 0 -16px; padding: calc(var(--bar-h) + 16px) 16px 2px; overflow-x: auto; scrollbar-width: none; }
@@ -486,10 +485,12 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   nav.toc a.active { border-color: var(--accent); }
   main { padding-top: 24px; }
 }
-@media (max-width: 860px) {
-  html { scroll-padding-top: calc(var(--bar-h) + 16px); }
+@container (max-width: 860px) {
   .layout { grid-template-columns: 1fr; gap: 0; }
   .margin { display: none; }
+}
+@media (max-width: 860px) {
+  html { scroll-padding-top: calc(var(--bar-h) + 16px); }
   .flow { flex-direction: column; align-items: stretch; }
   .arrow::after { content: "\2193"; }
   .flow.v > .col, .flow.v > .col > .flow > .box { width: 100%; }
@@ -515,13 +516,13 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     <span id="approved" class="approved" hidden></span>
   </div>
 </div>
-<div class="layout">
+<div class="page"><div class="layout">
   <nav class="toc" aria-label="Contents"></nav>
   <main>
 {{BODY}}
   </main>
   <div class="margin" aria-label="Comment threads"><svg class="ties" aria-hidden="true"></svg></div>
-</div>
+</div></div>
 <aside class="panel">
   <div class="handle" title="Drag to resize or close"></div>
   <div class="inner">
@@ -1574,7 +1575,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     const live = () => findTarget(el.dataset.ct) ?? el;
     // A sheet that only opened alongside the comment makes way, so its thread shows in the margin.
     const makeWay = () => {
-      if (lent && sheetOwner?.dataset.ct === el.dataset.ct) {
+      if (lent && sheetOwner?.dataset.ct === el.dataset.ct && marginHidden()) {
         closeSheet();
       }
     };
@@ -2029,7 +2030,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   const FOLD_KEY = `${KEY}:folded`;
   let foldedKeys = new Set();
   try { foldedKeys = new Set(JSON.parse(localStorage.getItem(FOLD_KEY)) || []); } catch {}
-  const noMargin = matchMedia('(max-width: 860px)');
+  const marginHidden = () => !$('.margin').offsetParent;
 
   function setFolded(key, folded) {
     if (folded) {
@@ -2229,12 +2230,12 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   // Where a reader would notice a reply: its thread in the margin, else what it changed, else its element.
   function seenTarget(c) {
-    if ($('.panel').classList.contains('open')) {
-      return [...document.querySelectorAll('.panel .thread-item')].find((el) => el.dataset.key === c.target) ?? null;
-    }
     const card = cards.get(c.target)?.el;
     if (card?.offsetParent && !card.classList.contains('folded')) {
       return card;
+    }
+    if ($('.panel').classList.contains('open')) {
+      return [...document.querySelectorAll('.panel .thread-item')].find((el) => el.dataset.key === c.target) ?? null;
     }
     const thread = threadsOf().find((t) => t.key === c.target);
     return changedElements(c.reply.lines ?? [])[0] ?? (thread && anchorFor(thread)) ?? null;
@@ -2299,7 +2300,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   // A thread that is not in the margin, resolved or on a narrow screen, keeps a counter on its element.
   function renderBadges() {
-    const off = threadsOf().filter((t) => t.items.length && (t.resolved || noMargin.matches)).map((t) => [t, anchorFor(t)]).filter(([, a]) => a);
+    const off = threadsOf().filter((t) => t.items.length && (t.resolved || marginHidden())).map((t) => [t, anchorFor(t)]).filter(([, a]) => a);
     const sig = JSON.stringify(off.map(([t]) => [t.key, messagesOf(t).length]));
     if (sig !== badgeSig) {
       badgeSig = sig;
@@ -2698,9 +2699,11 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   document.addEventListener('mouseover', linkFromHover);
   addEventListener('resize', layoutMargin);
   addEventListener('resize', positionBadges);
-  noMargin.addEventListener('change', render);
   document.fonts.ready.then(layoutMargin);
-  new ResizeObserver(() => layoutMargin()).observe($('main'));
+  new ResizeObserver(() => {
+    layoutMargin();
+    renderBadges();
+  }).observe($('main'));
 
   showThemeButton();
   requestAnimationFrame(() => requestAnimationFrame(() => $('#theme').classList.add('ready')));
