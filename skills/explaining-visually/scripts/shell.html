@@ -347,14 +347,20 @@ nav.toc a .loader { width: 10px; height: 10px; margin-left: 6px; vertical-align:
 .panel .thread-item .t { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
 .panel .thread-item .t button { padding: 2px 10px; font-size: 12px; }
 .panel .thread-item.resolved { opacity: .75; }
+.offscreen-note { position: fixed; z-index: 46; left: 50%; transform: translateX(-50%); padding: 6px 14px; border: 0; border-radius: 99px; background: var(--fg); color: var(--bg); font: 600 12.5px var(--sans); box-shadow: 0 6px 18px rgba(0,0,0,.2); cursor: pointer; animation: note-in .3s cubic-bezier(.2, .8, .2, 1); }
+.offscreen-note.docked { transform: none; }
+.offscreen-note.above { top: calc(var(--bar-h) + 28px); }
+.offscreen-note.below { bottom: 24px; }
+@keyframes note-in { from { opacity: 0; transform: translateY(8px); } }
+.offscreen-note.docked { animation-name: fade-in; }
 .tbadge { position: absolute; z-index: 41; height: 22px; padding: 0 8px; border: 0; border-radius: 11px; background: var(--accent); color: var(--on-accent); font: 700 11px/22px var(--sans); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
 .thread .earlier { display: block; margin-top: 6px; padding: 0; border: 0; background: none; color: var(--accent); font: 600 12px var(--sans); cursor: pointer; }
 .thread.arrive, .thread .msg.arrive { animation: thread-in .42s cubic-bezier(.2, .8, .2, 1) both; }
 @keyframes thread-in { from { opacity: 0; transform: translateX(40px); } }
+@keyframes fade-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .thread { transition: none; }
-  .thread.arrive, .thread .msg.arrive { animation-name: fade-in; }
-  @keyframes fade-in { from { opacity: 0; } }
+  .thread.arrive, .thread .msg.arrive, .offscreen-note { animation-name: fade-in; }
 }
 svg .delta > :is(rect, circle, ellipse, path, polygon) { stroke: var(--new); stroke-width: 2.5; }
 .bar button.reload { border-color: var(--accent); color: var(--accent); }
@@ -540,6 +546,8 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   <div class="row"><button data-a="cancel">Cancel</button><button data-a="ok" class="primary">Approve anyway</button></div>
 </dialog>
 <button class="cbtn" title="Comment"></button>
+<button class="offscreen-note above" hidden></button>
+<button class="offscreen-note below" hidden></button>
 <script>
 (() => {
   // Captured before any script touches main: later versions of the body are compared against it.
@@ -569,18 +577,32 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   const BASE_TITLE = document.title;
   const DOT = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%233d7a55'/%3E%3C/svg%3E";
 
-  function showUnseen(replies) {
-    let seen = replies;
-    try {
-      seen = Number(sessionStorage.getItem(SEEN_KEY) ?? replies);
-      if (!document.hidden) {
-        seen = replies;
-      }
-      sessionStorage.setItem(SEEN_KEY, String(seen));
-    } catch {}
-    const unseen = Math.max(0, replies - seen);
-    document.title = unseen ? `(${unseen}) ${BASE_TITLE}` : BASE_TITLE;
-    $('link[rel=icon]').href = unseen ? DOT : 'data:,';
+  // Null until the first state arrives; on a first visit every reply already there counts as seen.
+  let seenIds = null;
+  try {
+    const saved = localStorage.getItem(SEEN_KEY);
+    seenIds = saved ? new Set(JSON.parse(saved)) : null;
+  } catch {}
+  const saveSeen = () => { try { localStorage.setItem(SEEN_KEY, JSON.stringify([...seenIds])); } catch {} };
+  const unseen = () => (seenIds ? sent.filter((c) => c.reply && !seenIds.has(c.id)) : []);
+
+  function loadSeen(list) {
+    if (!seenIds) {
+      seenIds = new Set(list.filter((c) => c.reply).map((c) => c.id));
+      saveSeen();
+    }
+  }
+
+  function markSeen(ids) {
+    ids.forEach((id) => seenIds?.add(id));
+    saveSeen();
+    render();
+  }
+
+  function showTitle() {
+    const n = unseen().length;
+    document.title = n ? `(${n}) ${BASE_TITLE}` : BASE_TITLE;
+    $('link[rel=icon]').href = n ? DOT : 'data:,';
   }
   let hot = null;
   let hideTimer = null;
@@ -1142,6 +1164,8 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     markTargets();
     markChanged();
     renderMargin();
+    renderOffscreen();
+    showTitle();
     renderQuestions();
     const waiting = sent.filter((c) => !c.reply).length;
     const counts = [drafts.length && `${drafts.length} unsent`, waiting && `${waiting} waiting`].filter(Boolean);
@@ -1829,7 +1853,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   function markChanged() {
     document.querySelectorAll('.delta').forEach((el) => el.classList.remove('delta'));
-    sent.filter((c) => c.reply?.lines?.length).forEach((c) => changedElements(c.reply.lines).forEach((el) => el.classList.add('delta')));
+    unseen().filter((c) => c.reply.lines?.length).forEach((c) => changedElements(c.reply.lines).forEach((el) => el.classList.add('delta')));
   }
 
   let resolved = {};
@@ -1860,7 +1884,8 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       return null;
     }
     const section = thread.key.split(' › ')[0];
-    return findTarget(thread.key)
+    const found = findTarget(thread.key);
+    return (found && ownerOf(found))
       ?? changedElements(latestReply(thread)?.reply.lines ?? [])[0]
       ?? [...document.querySelectorAll('main section > h2')].find((h) => h.textContent.trim() === section)
       ?? null;
@@ -1933,6 +1958,8 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   function setFolded(key, folded) {
     if (folded) {
+      (cards.get(key)?.thread.items ?? []).filter((c) => c.reply).forEach((c) => seenIds?.add(c.id));
+      saveSeen();
       foldedKeys.add(key);
     } else {
       foldedKeys.delete(key);
@@ -2077,6 +2104,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     if (!thread) {
       return;
     }
+    markSeen(thread.items.filter((c) => c.reply).map((c) => c.id));
     flashChange(thread);
     togglePanel(true).then(() => {
       const item = [...document.querySelectorAll('.panel .thread-item')].find((el) => el.dataset.key === thread.key);
@@ -2084,6 +2112,81 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       item?.classList.add('flash');
       setTimeout(() => item?.classList.remove('flash'), 1200);
     });
+  }
+
+  const SEEN_AFTER_MS = 1500;
+  const visibleSince = new Map();
+
+  function unfoldUnseen() {
+    const keys = unseen().map((c) => c.target).filter((key) => foldedKeys.has(key));
+    if (keys.length) {
+      keys.forEach((key) => foldedKeys.delete(key));
+      try { localStorage.setItem(FOLD_KEY, JSON.stringify([...foldedKeys])); } catch {}
+    }
+  }
+
+  // Where a reader would notice a reply: its thread in the margin, else what it changed, else its element.
+  function seenTarget(c) {
+    const card = cards.get(c.target)?.el;
+    if (card?.offsetParent && !card.classList.contains('folded')) {
+      return card;
+    }
+    const thread = threadsOf().find((t) => t.key === c.target);
+    return changedElements(c.reply.lines ?? [])[0] ?? (thread && anchorFor(thread)) ?? null;
+  }
+
+  function halfVisible(el) {
+    const r = el.getBoundingClientRect();
+    const shown = Math.min(r.bottom, innerHeight) - Math.max(r.top, 0);
+    return r.height > 0 && shown >= Math.min(r.height, innerHeight) / 2;
+  }
+
+  function watchSeen() {
+    if (document.visibilityState !== 'visible' || !seenIds) {
+      return;
+    }
+    const now = Date.now();
+    const done = unseen().filter((c) => {
+      const el = seenTarget(c);
+      if (!el) {
+        return c.kind === 'answer';
+      }
+      if (!halfVisible(el)) {
+        visibleSince.delete(c.id);
+        return false;
+      }
+      visibleSince.set(c.id, visibleSince.get(c.id) ?? now);
+      return now - visibleSince.get(c.id) >= SEEN_AFTER_MS;
+    });
+    if (done.length) {
+      markSeen(done.map((c) => c.id));
+    }
+  }
+
+  function offscreen() {
+    const els = unseen().filter(inThread).map(seenTarget).filter(Boolean);
+    return {
+      above: els.filter((el) => el.getBoundingClientRect().bottom < 0).sort((a, b) => b.getBoundingClientRect().top - a.getBoundingClientRect().top),
+      below: els.filter((el) => el.getBoundingClientRect().top > innerHeight).sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top),
+    };
+  }
+
+  function renderOffscreen() {
+    const found = offscreen();
+    const margin = $('.margin');
+    const column = margin.offsetParent ? margin.getBoundingClientRect() : null;
+    [['above', '↑'], ['below', '↓']].forEach(([side, arrow]) => {
+      const note = $(`.offscreen-note.${side}`);
+      const n = found[side].length;
+      note.hidden = n === 0;
+      note.textContent = `${arrow} ${n} new ${n === 1 ? 'reply' : 'replies'} ${side}`;
+      note.style.left = column ? `${column.left}px` : '';
+      note.classList.toggle('docked', Boolean(column));
+    });
+  }
+
+  function jumpToUnseen(side) {
+    offscreen()[side][0]?.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
   }
 
   let badges = [];
@@ -2349,8 +2452,9 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       if (state.v !== bodyVersion) {
         await updateBody(state.v);
       }
-      showUnseen(state.sent.filter((c) => c.reply).length);
+      loadSeen(state.sent);
       sent = state.sent;
+      unfoldUnseen();
       resolved = state.resolved ?? {};
       render();
       motion = true;
@@ -2460,7 +2564,10 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   };
   $('#send').onclick = sendBatch;
   $('#approve').onclick = requestApproval;
-  document.addEventListener('visibilitychange', () => showUnseen(sent.filter((c) => c.reply).length));
+  setInterval(watchSeen, 250);
+  addEventListener('scroll', () => requestAnimationFrame(renderOffscreen), { passive: true });
+  $('.offscreen-note.above').onclick = () => jumpToUnseen('above');
+  $('.offscreen-note.below').onclick = () => jumpToUnseen('below');
   const closeDialog = () => animate('dialog', () => $('dialog.confirm').close());
   $('dialog.confirm [data-a=cancel]').onclick = closeDialog;
   $('dialog.confirm').addEventListener('cancel', (e) => {

@@ -369,6 +369,7 @@ async function checkMarginReply(browser, url, dir) {
   await page.waitForTimeout(700);
   check(await page.locator('.margin .thread .chip.waiting').isVisible(), 'margin: a sent comment opens a thread that shows Claude is working');
   const id = (await state(url)).sent.at(-1).id;
+  await page.evaluate(() => scrollTo(0, 0));
   editBody(dir, '<b>Login form</b>', '<b>Login form v2</b>');
   replyTo(dir, id, 'Renamed it.');
   await page.waitForTimeout(3000);
@@ -509,6 +510,49 @@ async function checkThreadActions(browser, url, dir) {
   await badge.click();
   await page.waitForTimeout(800);
   check(await page.locator('.panel.open').isVisible() && (await page.locator('.panel .thread-item').count()) >= 2, '390px: a thread counter opens the panel on the thread');
+  await page.close();
+  resetPage(dir);
+}
+
+async function checkOffscreen(browser, url, dir) {
+  resetPage(dir);
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const last = await page.evaluate(() => {
+    const el = document.querySelector('table.files tr:last-child');
+    return { target: el.dataset.ct, line: Number(el.dataset.line) };
+  });
+  await postComments(url, [{ id: 'off1', ...last, text: 'x' }, { id: 'off2', ...last, text: 'y' }]);
+  await page.evaluate(() => scrollTo(0, 0));
+  editBody(dir, '<td>New middleware</td>', '<td>New cookie middleware</td>');
+  replyTo(dir, 'off1', 'done');
+  await page.waitForTimeout(2600);
+  check(((await page.locator('.offscreen-note.below').textContent()) ?? '').includes('1 new reply below'), 'offscreen: a reply out of view is announced below');
+  check((await page.locator('main .delta').count()) === 1 && (await page.title()).startsWith('(1)'), 'offscreen: an unseen reply keeps its outline and the title count');
+  await page.locator('.offscreen-note.below').click();
+  await page.waitForTimeout(2500);
+  check(await page.locator('.offscreen-note.below').isHidden(), 'offscreen: the notice clears once the reply is seen');
+  check((await page.locator('main .delta').count()) === 0, 'offscreen: the outline clears once seen');
+  check(!(await page.title()).startsWith('('), 'offscreen: the title count clears once seen');
+  const card = page.locator(`.margin .thread[data-key="${last.target}"]`);
+  await card.hover();
+  await card.locator('[data-a=fold]').click();
+  await page.waitForTimeout(400);
+  replyTo(dir, 'off2', 'also done');
+  await page.waitForTimeout(2600);
+  check(!(await card.getAttribute('class')).includes('folded'), 'offscreen: a new reply unfolds a folded thread');
+  const inner = await page.evaluate(() => {
+    const el = document.querySelector('main aside.more p');
+    return { target: el.dataset.ct, line: Number(el.dataset.line) };
+  });
+  await postComments(url, [{ id: 'aside1', ...inner, text: 'more?' }]);
+  await page.waitForTimeout(2600);
+  const gap = await page.evaluate((key) => {
+    const tie = [...document.querySelectorAll('.margin .tie')].find((p) => p.dataset.key === key);
+    return tie ? Math.abs(tie.getBoundingClientRect().left - document.querySelector('tr[data-c="cookie.ts"]').getBoundingClientRect().right) : null;
+  }, inner.target);
+  check(gap !== null && gap <= 4, 'margin: a comment inside an expansion sits beside the element the expansion belongs to');
   await page.close();
   resetPage(dir);
 }
@@ -664,6 +708,7 @@ async function main() {
     await checkMarginReply(browser, url, dir);
     await checkMarginLayout(browser, url, dir);
     await checkThreadActions(browser, url, dir);
+    await checkOffscreen(browser, url, dir);
     await checkRemote(dir);
     await checkUpdate(browser, dir);
   } finally {
