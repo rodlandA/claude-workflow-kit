@@ -50,6 +50,8 @@ When the plan depends on something only the user can settle, ask it on the page.
 
 Over budget: merge related concepts; still over, the topic is two explainers — say so and split.
 
+An element whose detail does not fit its box text and its section's prose gets that detail in an `aside.more` from the first version (see Expanding). Asides are outside the budget; elements that need no more get none.
+
 ## Building blocks
 
 | Block | Markup |
@@ -95,12 +97,12 @@ Everything is commentable automatically. `example.body.html` shows a full plan.
 
 ## Expanding
 
-Depth lives in the side sheet's Info tab, never in the page.
+Depth lives in the side sheet's Info tab, never in the page. The element shows an `i` badge, and clicking it opens the aside there. The same aside answers an `EXPAND`, or is written up front (see Budget).
 
 1. Insert `<aside class="more">…</aside>` as the element's next sibling, even inside a `.flow` or `<ol>`. For an SVG `<g>` or a table row, give it `data-c="Name"` and put the aside after the `<figure>` or `<table>` with `data-for="Name"`: the parser moves an aside between rows out of the table.
 2. A visual first (flow, box grid, small table), then ≤ 80 words. Answer the question if there is one. Outside the budget.
 3. Plan mode: reasoning, alternatives and their cost, a `<pre>` example of at most 10 lines — never the implementation.
-4. Reply `Added to Info for <element>`. A second `EXPAND` on the element extends its `aside`.
+4. For an `EXPAND`, reply `Added to Info for <element>`. A second `EXPAND` on the element extends its `aside`.
 
 ## Approval
 
