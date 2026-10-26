@@ -900,6 +900,35 @@ async function checkLegend(browser, url, dir) {
   check(states.length === 6 && states.every((l) => !l.includes('#')), 'palette: state colours are derived from the palette, not hand-picked');
 }
 
+const FIGURE = '<figure data-c="Sequence"><svg viewBox="0 0 300 90" aria-label="Sequence"><rect class="lane" x="0" y="0" width="300" height="40"/><rect class="node changed" x="10" y="5" width="80" height="30"/><path class="edge arrow" d="M90 20 H200"/><text class="label" x="10" y="70">time</text></svg></figure>';
+
+async function checkDrawing(browser, url, dir) {
+  resetPage(dir);
+  editBody(dir, '<h2>How a request is authenticated today</h2>', `<h2>How a request is authenticated today</h2>\n  ${FIGURE}`);
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const drawn = await page.evaluate(() => {
+    const fig = document.querySelector('#today figure');
+    const marker = getComputedStyle(fig.querySelector('.edge.arrow')).markerEnd;
+    const id = marker.match(/#([\w-]+)/)?.[1];
+    return {
+      arrow: Boolean(id && document.getElementById(id)?.tagName === 'marker'),
+      fill: getComputedStyle(fig.querySelector('.node.changed')).fill,
+      box: getComputedStyle(document.querySelector('main .box.changed')).backgroundColor,
+      legend: fig.previousElementSibling?.matches('.legend') ? fig.previousElementSibling.textContent : null,
+    };
+  });
+  check(drawn.arrow, 'drawing: an arrow edge gets the shell arrowhead');
+  check(drawn.fill === drawn.box, 'drawing: a state class fills an SVG node with its state colour');
+  check(drawn.legend === 'changed', 'legend: a figure with coloured nodes gets a legend above it');
+  await page.close();
+  resetPage(dir);
+  const shell = fs.readFileSync(path.join(here, 'shell.html'), 'utf8');
+  const steps = ['flame', 'truffle', 'blue-fantastic'].flatMap((hue) => [100, 200, 300, 400, 600, 700, 800, 900].map((n) => `--${hue}-${n}:`));
+  check(steps.every((t) => shell.includes(t)), 'palette: every hue has its 100-900 steps for drawings');
+}
+
 async function main() {
   check(cssBalanced(), 'shell.html: CSS braces balance');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'explainer-check-'));
@@ -925,6 +954,7 @@ async function main() {
     await checkExpand(browser, url, dir);
     await checkReviewFixes(browser, url, dir);
     await checkLegend(browser, url, dir);
+    await checkDrawing(browser, url, dir);
     await checkRemote(dir);
     await checkUpdate(browser, dir);
   } finally {

@@ -23,7 +23,7 @@ A fragment — no `<html>`, `<style>` or `<script>`. Content in the conversation
 
 **Plan** (before anything is built) — `<h1 data-mode="plan">`, then: `<p class="lede">` with the change in one sentence; the questions (below); `<ul class="tldr">` Why / What changes / Size; **Today** as a `.flow`; **After** as `.cols` Before/After with boxes `new` / `changed` / `removed`; **Steps** as `<ol class="steps">`, one commit-sized `.step` each; **Open decisions**, one `.callout.decision` each, only for what nobody can settle yet; **Where** as `table.files`.
 
-**As-built** (what exists) — `<h1 data-mode="as-built">`, then: lede and a 3–4 item `.tldr`; **Map**, one overview `.flow` or SVG; **one section per concept**, visual first, then at most two sentences and a `file:line`; **Traps** as `.callout.trap`; **Where** as `table.files`.
+**As-built** (what exists) — `<h1 data-mode="as-built">`, then: lede and a 3–4 item `.tldr`; **Map**, one drawing of the whole mechanism (see Drawing); **one section per concept**, visual first, then at most two sentences and a `file:line`; **Traps** as `.callout.trap`; **Where** as `table.files`.
 
 ## Questions (plan mode)
 
@@ -64,11 +64,27 @@ An element whose detail does not fit its box text and its section's prose gets t
 | Steps | `<ol class="steps"><li class="step [new\|changed\|removed]"><b>…</b><small>…</small></li>` |
 | Callouts | `<div class="callout trap\|decision\|question"><b>Label</b>text</div>` |
 | Lookup table | `<table class="files">`, any short two- or three-column table |
-| Anything else | `<figure><svg aria-label="…">` with classes `node` / `edge` / `muted`, colours only as `var(--…)`, `data-c="Name"` on each `<g>` |
+| Drawing | `<figure><svg viewBox="…" aria-label="…">`, see Drawing |
 
 Colour is a box's state against today, never decoration: `new` / `changed` / `removed` belong to a plan's After and Steps; `focus` marks what its section is about, and is the only colour on an as-built page. The page puts a legend of the states used above each coloured group.
 
 Everything is commentable automatically. `example.body.html` shows a full plan.
+
+## Drawing
+
+Each visual takes the shape of what it shows. A row of boxes and arrows fits a pipeline and nothing else.
+
+| The thing has | Draw |
+|---|---|
+| order in time between actors | a sequence: one lane per actor, arrows across in time order |
+| states and transitions | a state diagram: rounded nodes, labelled arrows |
+| parts inside parts | nested shapes, each container drawn around its contents |
+| a screen or layout | a wireframe of it, the part in question highlighted |
+| a data shape | the real example value, annotated |
+| sizes, rates, limits | a scale or bars drawn to proportion |
+| a pipeline | a `.flow` |
+
+Draw as inline SVG in a `<figure>`, with a `viewBox` and no fixed width. Small illustrations and icons are welcome where they make a part recognisable. Shell classes: `node` (a shape), `node new` / `changed` / `removed` / `focus` (state), `edge` (a line), `edge arrow` (with arrowhead), `edge dashed`, `lane` (background band), `text.label` (small mono caption), `muted`. Any other colour as `var(--…)`: `--flame-100` … `--flame-900`, likewise `--truffle-*` and `--blue-fantastic-*`, so both themes work. Wrap each part a reader may comment on in `<g data-c="Name">`.
 
 ## The comment loop
 
@@ -135,4 +151,5 @@ To release, bump `version` in `scripts/package.json`, merge, then tag the merge 
 | A choice the user must make, written as an Open decisions callout | A `.q`, so it is answered on top instead of commented on |
 | `--watch` without slugs while other sessions work in the repo | Name your pages, or you consume their comments |
 | Prose under a diagram, or detail in the page | Box labels, or an `aside.more` |
+| Every section a row of boxes | Draw the shape the thing has (see Drawing) |
 | An expansion that writes the code a plan describes | Reasons and a short example; code comes after approval |
