@@ -376,8 +376,9 @@ nav.toc a .loader { width: 10px; height: 10px; margin-left: 6px; vertical-align:
 .thread .actions button { border: 0; border-radius: 99px; padding: 2px 8px; font-size: 11.5px; background: none; }
 .thread .actions button:hover { background: var(--accent-soft); color: var(--accent); }
 :is(.thread, .thread-item.focus) textarea { display: block; width: 100%; min-height: 30px; max-height: 160px; field-sizing: content; resize: none; font: inherit; font-size: 13px; border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: var(--bg); color: var(--fg); }
-.thread .tools .row { display: none; justify-content: flex-end; gap: 6px; margin-top: 6px; }
-.thread:focus-within .tools .row, .thread .tools:has(textarea:not(:placeholder-shown)) .row { display: flex; }
+.thread .tools .row { display: flex; justify-content: flex-end; gap: 6px; max-height: 0; margin: 0 -3px; padding: 0 3px; overflow: hidden; opacity: 0; visibility: hidden; transition: max-height .3s cubic-bezier(.2, .8, .2, 1), margin .3s cubic-bezier(.2, .8, .2, 1), padding .3s cubic-bezier(.2, .8, .2, 1), opacity .2s, visibility .3s; }
+.thread:focus-within .tools .row, .thread .tools:has(textarea:not(:placeholder-shown)) .row { max-height: 48px; margin: 3px -3px -3px; padding: 3px; opacity: 1; visibility: visible; }
+.margin.following .thread { transition: box-shadow .2s; }
 .thread-item.focus .tools .row { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
 .thread-item.focus .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .thread-item.focus .actions button[data-a=fold] { display: none; }
@@ -403,6 +404,7 @@ nav.toc a .loader { width: 10px; height: 10px; margin-left: 6px; vertical-align:
 @keyframes fade-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .thread { transition: none; }
+  .thread .tools .row { transition: opacity .2s, visibility .2s; }
   .thread.arrive, .thread .msg.arrive, .offscreen-note { animation-name: fade-in; }
 }
 svg .delta > :is(rect, circle, ellipse, path, polygon) { stroke: var(--new); stroke-width: 2.5; }
@@ -2531,6 +2533,29 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     });
     layoutMargin();
     renderBadges();
+    cardSizes.disconnect();
+    cards.forEach(({ el }) => cardSizes.observe(el));
+  }
+
+  const cardHeights = new WeakMap();
+
+  // A card that grows in place (reply row, typing) moves the cards below in the same frame, without the glide lagging behind.
+  const cardSizes = new ResizeObserver((entries) => {
+    const resized = entries.map(({ target, borderBoxSize }) => {
+      const before = cardHeights.get(target);
+      cardHeights.set(target, borderBoxSize[0].blockSize);
+      return before !== undefined && before !== borderBoxSize[0].blockSize;
+    });
+    if (resized.some(Boolean)) {
+      followMargin();
+    }
+  });
+
+  function followMargin() {
+    const margin = $('.margin');
+    margin.classList.add('following');
+    layoutMargin();
+    requestAnimationFrame(() => margin.classList.remove('following'));
   }
 
   function keepTyping(from, to) {

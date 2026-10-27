@@ -420,6 +420,17 @@ async function checkMarginLayout(browser, url, dir) {
   const plain = cards.filter((c) => !c.general);
   const general = cards.find((c) => c.general);
   check(plain.length === 3 && plain.every((a, i) => plain.every((b, j) => i === j || !overlaps(a, b))), 'margin: threads on adjacent elements never overlap');
+  const upper = plain.reduce((a, b) => (a.top < b.top ? a : b));
+  await page.locator(`.margin .thread[data-key="${upper.key}"] .tools textarea`).focus();
+  const apart = () => page.evaluate(() => {
+    const r = [...document.querySelectorAll('.margin .thread:not(.general)')].map((el) => el.getBoundingClientRect()).sort((a, b) => a.top - b.top);
+    return r.every((a, i) => i === 0 || r[i - 1].bottom <= a.top);
+  });
+  await page.waitForTimeout(120);
+  const midway = await apart();
+  await page.waitForTimeout(400);
+  check(midway && await apart() && await page.locator(`.margin .thread[data-key="${upper.key}"] [data-a=send]`).isVisible(), 'margin: opening a reply pushes the thread below along with it');
+  await page.locator('main h1').click();
   check((await page.locator('.margin svg, .margin .tie').count()) === 0, 'margin: no lines are drawn between threads and their elements');
   check(Boolean(general) && plain.every((c) => general.top <= c.top && general.left > c.left), 'margin: the general thread sits on top, offset right');
   const lit = [];
