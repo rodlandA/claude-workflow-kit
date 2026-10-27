@@ -1,0 +1,448 @@
+<h1 data-mode="plan">The delivery drone turns back on its own when its battery cannot reach home</h1>
+<p class="lede">The drone keeps working out what the trip home costs, and starts a reserve return before the pilot has to react.</p>
+
+<div class="q" id="q-override"><b>Can the pilot override the reserve return?</b><small>decides whether the app gets a “Continue anyway” button</small>
+  <ol><li class="rec">Yes, after confirming<small>the pilot takes responsibility, the event is logged</small></li><li>No<small>safest, but a delivery 200 m away is abandoned</small></li></ol></div>
+<div class="q" id="q-margin"><b>How much safety margin over the estimated need?</b><small>sets how early the drone turns back</small>
+  <ol><li>10 %<small>more deliveries complete, little room for gusts</small></li><li class="rec">20 %<small>absorbs a wind increase of about 4 m/s</small></li><li>30 %<small>often turns back for nothing</small></li></ol></div>
+
+<ul class="tldr">
+  <li><b>Why</b>Pilots take 40 s on average to press “Home” after the warning; two drones have made emergency landings.</li>
+  <li><b>What changes</b>A battery estimate on the drone, a new Reserve return state, new telemetry fields.</li>
+  <li><b>Size</b>Four steps, firmware and app; the server only forwards.</li>
+</ul>
+
+<section id="today">
+  <h2>Today: the pilot is part of the loop</h2>
+  <figure>
+    <svg viewBox="0 0 760 360" aria-label="Sequence today: the drone sends telemetry, the server warns the app, the pilot presses Home, the command goes back to the drone">
+      <rect class="lane" x="20" y="0" width="200" height="360" rx="10"/>
+      <rect class="lane" x="280" y="0" width="200" height="360" rx="10"/>
+      <rect class="lane" x="540" y="0" width="200" height="360" rx="10"/>
+      <text x="120" y="28" text-anchor="middle" font-weight="600">Drone</text>
+      <text x="380" y="28" text-anchor="middle" font-weight="600">Server</text>
+      <text x="640" y="28" text-anchor="middle" font-weight="600">App and pilot</text>
+      <line class="edge dashed" x1="120" y1="40" x2="120" y2="350"/>
+      <line class="edge dashed" x1="380" y1="40" x2="380" y2="350"/>
+      <line class="edge dashed" x1="640" y1="40" x2="640" y2="350"/>
+      <g data-c="Telemetry">
+        <line class="edge arrow" x1="120" y1="72" x2="374" y2="72"/>
+        <text class="label" x="134" y="64">telemetry every 1 s</text>
+      </g>
+      <g data-c="Position to the app">
+        <line class="edge arrow" x1="380" y1="108" x2="634" y2="108"/>
+        <text class="label" x="394" y="100">position + battery</text>
+      </g>
+      <g data-c="Battery 25 %">
+        <rect class="node" x="60" y="128" width="120" height="30" rx="15"/>
+        <text x="120" y="148" text-anchor="middle">battery 25 %</text>
+      </g>
+      <g data-c="Warning">
+        <line class="edge arrow" x1="380" y1="186" x2="634" y2="186"/>
+        <text class="label" x="394" y="178">warning: low battery</text>
+      </g>
+      <g data-c="Pilot reacts">
+        <rect class="node focus" x="560" y="204" width="160" height="40" rx="8"/>
+        <text x="640" y="229" text-anchor="middle">pilot presses “Home”</text>
+        <text class="label" x="640" y="262" text-anchor="middle">40 s on average</text>
+      </g>
+      <g data-c="Return command">
+        <line class="edge arrow" x1="640" y1="282" x2="126" y2="282"/>
+        <text class="label" x="400" y="274">command: fly home</text>
+      </g>
+      <g data-c="Acknowledgement">
+        <line class="edge dashed arrow" x1="120" y1="322" x2="374" y2="322"/>
+        <text class="label" x="134" y="314">ack</text>
+      </g>
+    </svg>
+  </figure>
+  <p>The decision to turn back is made by a person two network hops away. When the warning arrives late or the pilot is busy, the margin is already spent.</p>
+</section>
+
+<section id="states">
+  <h2>States: Reserve return joins them</h2>
+  <figure>
+    <svg viewBox="0 0 760 300" aria-label="State diagram: Ready, En route, Delivering, Home and Landed, with a new Reserve return state from En route and Delivering">
+      <g data-c="Ready"><rect class="node" x="20" y="40" width="130" height="44" rx="22"/><text x="85" y="67" text-anchor="middle">Ready</text></g>
+      <g data-c="En route"><rect class="node" x="250" y="40" width="130" height="44" rx="22"/><text x="315" y="67" text-anchor="middle">En route</text></g>
+      <g data-c="Delivering"><rect class="node" x="480" y="40" width="130" height="44" rx="22"/><text x="545" y="67" text-anchor="middle">Delivering</text></g>
+      <g data-c="Home"><rect class="node changed" x="480" y="200" width="130" height="44" rx="22"/><text x="545" y="227" text-anchor="middle">Home</text></g>
+      <g data-c="Reserve return"><rect class="node new" x="250" y="200" width="150" height="44" rx="22"/><text x="325" y="227" text-anchor="middle">Reserve return</text></g>
+      <g data-c="Landed"><rect class="node" x="20" y="200" width="130" height="44" rx="22"/><text x="85" y="227" text-anchor="middle">Landed</text></g>
+      <path class="edge arrow" d="M150 62 H244"/><text class="label" x="176" y="54">start</text>
+      <path class="edge arrow" d="M380 62 H474"/><text class="label" x="404" y="54">arrived</text>
+      <path class="edge arrow" d="M545 84 V194"/><text class="label" x="554" y="144">delivered</text>
+      <g data-c="Battery threshold">
+        <path class="edge arrow" d="M315 84 V194" style="stroke: var(--new)"/>
+        <text class="label" x="190" y="134" style="fill: var(--new)">need + margin ≥ left</text>
+      </g>
+      <path class="edge arrow" d="M505 84 L 398 196" style="stroke: var(--new)"/>
+      <text class="label" x="456" y="160" style="fill: var(--new)">same threshold</text>
+      <path class="edge arrow" d="M250 222 H156"/><text class="label" x="168" y="214">nearest</text>
+      <path class="edge arrow" d="M545 244 C 545 292, 85 292, 85 250"/><text class="label" x="300" y="290">at base</text>
+    </svg>
+  </figure>
+  <aside class="more" data-for="Reserve return">
+    <table class="files">
+      <tr><th>Distance home</th><th>Nearest landing site</th><th>Reserve return flies to</th></tr>
+      <tr><td>2.1 km</td><td>3.4 km</td><td>base</td></tr>
+      <tr><td>6.0 km</td><td>1.2 km</td><td>landing site</td></tr>
+    </table>
+    <p>Reserve return picks the nearest of the base and approved landing sites, measured in energy, not metres: a headwind makes a short way expensive. From Delivering the same threshold applies, but the parcel is dropped first if it is under 30 s from delivery.</p>
+  </aside>
+  <p>Home changes from a bare command into a state the drone can also enter on its own. The move to Reserve return is checked every second in both En route and Delivering.</p>
+</section>
+
+<section id="turn">
+  <h2>When must it turn back?</h2>
+  <figure>
+    <svg viewBox="0 0 760 236" aria-label="Bars to scale: 62 percent battery left against the need to fly 6 km home in 0, 8 and 14 metres per second of wind, with a 20 percent margin">
+      <defs><pattern id="turn-margin" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="6" style="fill: var(--flame-300)"/></pattern></defs>
+      <text class="label" x="150" y="20">0 %</text><text class="label" x="436" y="20">50 %</text><text class="label" x="708" y="20">100 %</text>
+      <line class="edge" x1="160" y1="28" x2="160" y2="214"/>
+      <line class="edge dashed" x1="160" y1="28" x2="720" y2="28"/>
+      <g data-c="Left now">
+        <text x="148" y="58" text-anchor="end">left now</text>
+        <rect x="160" y="42" width="347" height="24" rx="4" style="fill: var(--blue-fantastic-300); stroke: var(--fg)"/>
+        <text class="label" x="514" y="58">62 %</text>
+      </g>
+      <line x1="507" y1="34" x2="507" y2="214" style="stroke: var(--fg); stroke-dasharray: 2 3"/>
+      <g data-c="No wind">
+        <text x="148" y="106" text-anchor="end">no wind</text>
+        <rect x="160" y="90" width="213" height="24" rx="4" style="fill: var(--flame-300)"/>
+        <rect x="373" y="90" width="42" height="24" style="fill: url(#turn-margin)"/>
+        <text class="label" x="424" y="106">38 + 8 = 46 %</text>
+      </g>
+      <g data-c="8 m/s">
+        <text x="148" y="148" text-anchor="end">8 m/s</text>
+        <rect x="160" y="132" width="280" height="24" rx="4" style="fill: var(--flame-300)"/>
+        <rect x="440" y="132" width="56" height="24" style="fill: url(#turn-margin)"/>
+        <text class="label" x="516" y="148">50 + 10 = 60 %</text>
+      </g>
+      <g data-c="14 m/s">
+        <text x="148" y="190" text-anchor="end">14 m/s</text>
+        <rect x="160" y="174" width="420" height="24" rx="4" style="fill: var(--truffle-300)"/>
+        <rect x="580" y="174" width="84" height="24" style="fill: url(#turn-margin)"/>
+        <text class="label" x="672" y="190" style="fill: var(--removed)">turn</text>
+      </g>
+      <text class="label" x="160" y="230">6 km home · hatched = 20 % margin · dotted = battery left</text>
+    </svg>
+  </figure>
+  <figure class="live" data-c="Reach">
+    <script type="module">
+      export default (stage, { palette, reducedMotion }) => {
+        const abort = new AbortController();
+        const canvas = document.createElement('canvas');
+        const panel = document.createElement('div');
+        panel.style.cssText = `position:absolute;left:12px;top:12px;display:grid;grid-template-columns:auto 120px 52px;gap:4px 10px;align-items:center;padding:10px 12px;border:1px solid ${palette.line};border-radius:10px;background:${palette.card};color:${palette.fg};font:12px var(--mono)`;
+        const readout = document.createElement('div');
+        readout.style.cssText = `position:absolute;right:12px;bottom:12px;padding:6px 10px;border-radius:8px;background:${palette.card};border:1px solid ${palette.line};color:${palette.fg};font:12px var(--mono)`;
+        const values = { distance: 6, wind: 8, battery: 62 };
+        const ranges = { distance: [1, 10, 0.1, 'km'], wind: [0, 15, 1, 'm/s'], battery: [20, 100, 1, '%'] };
+        Object.entries(ranges).forEach(([key, [min, max, step, unit]]) => {
+          const input = Object.assign(document.createElement('input'), { type: 'range', min, max, step, value: values[key] });
+          input.style.accentColor = palette.accent;
+          const out = document.createElement('span');
+          out.textContent = `${values[key]} ${unit}`;
+          input.addEventListener('input', () => { values[key] = Number(input.value); out.textContent = `${input.value} ${unit}`; draw(); }, { signal: abort.signal });
+          panel.append(Object.assign(document.createElement('span'), { textContent: key }), input, out);
+        });
+        stage.append(canvas, panel, readout);
+        const need = (km, wind) => km * 6.3 * (1 + 0.005 * wind * wind);
+        function draw() {
+          const w = stage.clientWidth;
+          const h = stage.clientHeight;
+          const dpr = devicePixelRatio;
+          canvas.width = w * dpr;
+          canvas.height = h * dpr;
+          canvas.style.width = `${w}px`;
+          canvas.style.height = `${h}px`;
+          const ctx = canvas.getContext('2d');
+          ctx.scale(dpr, dpr);
+          const home = { x: w * 0.3, y: h * 0.58 };
+          const px = Math.min(w * 0.6, h * 0.9) / 12;
+          const reach = values.battery / (need(1, values.wind) * 1.2);
+          ctx.strokeStyle = palette.line;
+          for (let r = 1; r <= 12; r += 1) {
+            ctx.beginPath();
+            ctx.arc(home.x, home.y, r * px, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+          ctx.fillStyle = palette.flame[100];
+          ctx.strokeStyle = palette.flame[600];
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(home.x, home.y, reach * px, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = palette.accent;
+          ctx.fillRect(home.x - 7, home.y - 7, 14, 14);
+          const drone = { x: home.x + values.distance * px, y: home.y };
+          const ok = values.distance <= reach;
+          ctx.fillStyle = ok ? palette.fg : palette.removed;
+          ctx.beginPath();
+          ctx.arc(drone.x, drone.y, 8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.setLineDash([5, 4]);
+          ctx.strokeStyle = palette.muted;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(drone.x, drone.y);
+          ctx.lineTo(home.x, home.y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.font = '12px ui-monospace, monospace';
+          ctx.fillStyle = palette.muted;
+          ctx.fillText('base', home.x - 14, home.y + 24);
+          ctx.fillText('reaches home with margin', home.x - 70, home.y + reach * px + 18);
+          const cost = need(values.distance, values.wind);
+          readout.textContent = `need ${cost.toFixed(0)} % + margin ${(cost * 0.2).toFixed(0)} % · left ${values.battery} % · ${ok ? 'continues' : 'turns back now'}`;
+          readout.style.color = ok ? palette.fg : palette.removed;
+        }
+        const ro = new ResizeObserver(draw);
+        ro.observe(stage);
+        draw();
+        return () => {
+          abort.abort();
+          ro.disconnect();
+          stage.replaceChildren();
+        };
+      };
+    </script>
+    <figcaption>Drag distance, wind and battery: the drone turns back once it is outside the circle it can reach home from.</figcaption>
+  </figure>
+  <div class="callout trap"><b>Wind is squared</b>The need grows with the square of the wind: doubling it from 7 to 14 m/s more than doubles the extra.</div>
+</section>
+
+<section id="route">
+  <h2>The way home goes over the buildings</h2>
+  <figure class="live" data-c="Route in 3D">
+    <script type="module">
+      import * as THREE from 'three';
+      import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+      export default (stage, { palette, reducedMotion }) => {
+        const abort = new AbortController();
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(devicePixelRatio);
+        stage.append(renderer.domElement);
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(palette.card);
+        const camera = new THREE.PerspectiveCamera(42, 16 / 9, 0.1, 600);
+        camera.position.set(-38, 52, 78);
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(28, 8, 2);
+        controls.enableDamping = !reducedMotion;
+        controls.update();
+        scene.add(new THREE.HemisphereLight(0xffffff, palette.dark ? 0x223040 : 0xb8ad9c, 2.4));
+        const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+        sun.position.set(30, 80, 40);
+        scene.add(sun);
+        const grid = new THREE.GridHelper(120, 24, palette.line, palette.line);
+        grid.position.x = 30;
+        scene.add(grid);
+        const disposables = [];
+        const mesh = (geometry, color, opts = {}) => {
+          const material = new THREE.MeshStandardMaterial({ color, roughness: 0.8, ...opts });
+          disposables.push(geometry, material);
+          return new THREE.Mesh(geometry, material);
+        };
+        const pad = mesh(new THREE.CylinderGeometry(4, 4, 0.4, 32), palette.accent);
+        pad.position.set(0, 0.2, 0);
+        scene.add(pad);
+        const building = palette.dark ? palette.blueFantastic[700] : palette.blueFantastic[300];
+        [[30, 6, 8, 20], [14, -14, 10, 10], [46, 18, 8, 14], [8, 14, 6, 6], [56, -12, 9, 8]].forEach(([x, z, size, height]) => {
+          const box = mesh(new THREE.BoxGeometry(size, height, size), building);
+          box.position.set(x, height / 2, z);
+          scene.add(box);
+        });
+        const line = (points, color, dashed) => {
+          const geometry = new THREE.BufferGeometry().setFromPoints(points.map(([x, y, z]) => new THREE.Vector3(x, y, z)));
+          const material = dashed ? new THREE.LineDashedMaterial({ color, dashSize: 1.6, gapSize: 1.2 }) : new THREE.LineBasicMaterial({ color });
+          disposables.push(geometry, material);
+          const l = new THREE.Line(geometry, material);
+          if (dashed) {
+            l.computeLineDistances();
+          }
+          scene.add(l);
+          return l;
+        };
+        const safe = [[60, 12, 10], [60, 26, 10], [0, 26, 0], [0, 1, 0]];
+        line(safe, palette.new);
+        const direct = line([[60, 12, 10], [0, 1, 0]], palette.removed, true);
+        const hit = mesh(new THREE.SphereGeometry(1.1, 20, 12), palette.removed);
+        hit.position.set(34, 7.2, 5.7);
+        scene.add(hit);
+        const drone = new THREE.Group();
+        drone.add(mesh(new THREE.BoxGeometry(2.4, 0.7, 2.4), palette.fg));
+        [[-1.6, -1.6], [1.6, -1.6], [-1.6, 1.6], [1.6, 1.6]].forEach(([x, z]) => {
+          const rotor = mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.12, 16), palette.flame[400]);
+          rotor.position.set(x, 0.45, z);
+          drone.add(rotor);
+        });
+        drone.position.set(60, 12, 10);
+        scene.add(drone);
+        const legend = document.createElement('label');
+        legend.style.cssText = `position:absolute;left:12px;top:12px;display:grid;gap:4px;padding:8px 12px;border:1px solid ${palette.line};border-radius:10px;background:${palette.card};color:${palette.fg};font:12px var(--mono)`;
+        legend.innerHTML = `<span style="color:${palette.new}">━ safe altitude 26 m</span><span style="color:${palette.removed}">┅ straight line hits a building</span><span><input type="checkbox" checked> show straight line</span>`;
+        legend.querySelector('input').addEventListener('change', (e) => { direct.visible = e.target.checked; hit.visible = e.target.checked; render(); }, { signal: abort.signal });
+        stage.append(legend);
+        const path = safe.map(([x, y, z]) => new THREE.Vector3(x, y, z));
+        const lengths = path.slice(1).map((p, i) => p.distanceTo(path[i]));
+        const total = lengths.reduce((a, b) => a + b, 0);
+        const at = (t) => {
+          let d = t * total;
+          for (let i = 0; i < lengths.length; i += 1) {
+            if (d <= lengths[i]) {
+              return path[i].clone().lerp(path[i + 1], d / lengths[i]);
+            }
+            d -= lengths[i];
+          }
+          return path.at(-1).clone();
+        };
+        function render() {
+          renderer.render(scene, camera);
+        }
+        function resize() {
+          const w = stage.clientWidth;
+          const h = stage.clientHeight;
+          renderer.setSize(w, h);
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+          render();
+        }
+        const ro = new ResizeObserver(resize);
+        ro.observe(stage);
+        resize();
+        let frame = 0;
+        const start = performance.now();
+        function loop(now) {
+          const t = ((now - start) / 9000) % 1;
+          drone.position.copy(at(t));
+          controls.update();
+          render();
+          frame = requestAnimationFrame(loop);
+        }
+        if (reducedMotion) {
+          controls.addEventListener('change', render);
+        } else {
+          frame = requestAnimationFrame(loop);
+        }
+        return () => {
+          cancelAnimationFrame(frame);
+          abort.abort();
+          ro.disconnect();
+          controls.dispose();
+          disposables.forEach((d) => d.dispose());
+          renderer.dispose();
+          renderer.forceContextLoss();
+          stage.replaceChildren();
+        };
+      };
+    </script>
+    <figcaption>Drag to see the route from every side: the reserve return climbs to 26 m before flying home, because the straight line passes through a building.</figcaption>
+  </figure>
+  <p>The altitude comes from the map layer: the tallest building along the corridor plus 6 m, the rule pilots use today, now in firmware.</p>
+</section>
+
+<section id="after">
+  <h2>After: the decision moves into the drone</h2>
+  <div class="cols">
+    <div class="col"><h4>Before</h4>
+      <div class="flow v">
+        <div class="box"><b>Telemetry</b><small>battery in percent</small></div>
+        <div class="arrow">to server</div>
+        <div class="box"><b>Warning in the app</b><small>at a fixed 25 %</small></div>
+        <div class="arrow">waits for the pilot</div>
+        <div class="box removed"><b>Pilot presses Home</b><small>40 s on average</small></div>
+      </div>
+    </div>
+    <div class="col"><h4>After</h4>
+      <div class="flow v">
+        <div class="box new"><b>Battery estimate</b><small>need to get home, every second</small></div>
+        <aside class="more">
+          <div class="flow">
+            <div class="box"><b>Distance</b><small>along the safe route</small></div>
+            <div class="arrow">×</div>
+            <div class="box"><b>Use per km</b><small>measured over 2 min</small></div>
+            <div class="arrow">×</div>
+            <div class="box"><b>Wind factor</b><small>1 + 0.005 · v²</small></div>
+          </div>
+          <p>Use is measured rather than looked up, so a heavy parcel or an old battery raises the need without a rule of its own. The wind factor is fitted to logs from 1,200 flights.</p>
+        </aside>
+        <div class="arrow">over threshold</div>
+        <div class="box new"><b>Reserve return</b><small>without waiting</small></div>
+        <div class="arrow">reports</div>
+        <div class="box changed"><b>Warning in the app</b><small>says what the drone does</small></div>
+      </div>
+    </div>
+  </div>
+  <figure>
+    <svg viewBox="0 0 760 210" aria-label="Modules in the flight controller: Navigation, Battery with a new Estimator, Comms with changed Telemetry, and a changed Failsafe">
+      <g data-c="Flight controller"><rect class="node" x="4" y="4" width="752" height="200" rx="14"/><text x="22" y="30" font-weight="600">Flight controller</text></g>
+      <g data-c="Navigation"><rect class="node" x="24" y="48" width="160" height="136" rx="10"/><text x="40" y="72">Navigation</text><text class="label" x="40" y="96">route plan</text><text class="label" x="40" y="114">height map</text></g>
+      <g data-c="Battery module"><rect class="node" x="200" y="48" width="200" height="136" rx="10"/><text x="216" y="72">Battery</text>
+        <rect class="node" x="216" y="88" width="80" height="80" rx="8"/><text class="label" x="228" y="132">meter</text></g>
+      <g data-c="Estimator"><rect class="node new" x="306" y="88" width="80" height="80" rx="8"/><text class="label" x="316" y="132">estimator</text></g>
+      <g data-c="Comms"><rect class="node" x="416" y="48" width="160" height="136" rx="10"/><text x="432" y="72">Comms</text>
+        <rect class="node changed" x="432" y="88" width="128" height="80" rx="8"/><text class="label" x="446" y="132">telemetry</text></g>
+      <g data-c="Failsafe"><rect class="node changed" x="592" y="48" width="144" height="136" rx="10"/><text x="608" y="72">Failsafe</text><text class="label" x="608" y="96">link lost</text><text class="label" x="608" y="114">reserve return</text></g>
+    </svg>
+  </figure>
+  <p>The estimator lives in the battery module, and Failsafe gains reserve return as a trigger next to a lost link.</p>
+</section>
+
+<section id="app">
+  <h2>The app and the message</h2>
+  <figure>
+    <svg viewBox="0 0 760 420" aria-label="Wireframe of the app with a new banner and button, beside the telemetry message with three new fields marked">
+      <g data-c="Phone"><rect class="node" x="30" y="10" width="230" height="400" rx="30"/><rect x="110" y="22" width="70" height="8" rx="4" style="fill: var(--line)"/></g>
+      <g data-c="Map">
+        <rect x="46" y="44" width="198" height="220" rx="10" style="fill: var(--oat)"/>
+        <path d="M70 230 C 110 180, 160 210, 210 90" style="fill: none; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 4 4"/>
+        <rect x="64" y="222" width="14" height="14" style="fill: var(--accent)"/>
+        <circle cx="210" cy="90" r="7" style="fill: var(--fg)"/>
+      </g>
+      <g data-c="Banner"><rect class="node new" x="46" y="276" width="198" height="52" rx="10"/><text x="60" y="298" font-weight="600">Returning</text><text class="label" x="60" y="316">low battery · 62 % left</text></g>
+      <g data-c="Continue anyway"><rect class="node new" x="46" y="342" width="198" height="40" rx="20"/><text x="145" y="367" text-anchor="middle">Continue anyway</text></g>
+      <g data-c="Message">
+        <rect class="node" x="300" y="40" width="440" height="230" rx="10"/>
+        <rect class="node new" x="306" y="134" width="428" height="72" rx="4"/>
+        <text class="label" x="320" y="68">{</text>
+        <text class="label" x="336" y="88">"id": "D-14",</text>
+        <text class="label" x="336" y="108">"pos": [59.91, 10.75, 120],</text>
+        <text class="label" x="336" y="128">"battery_pct": 62,</text>
+        <text class="label" x="336" y="152">"reserve_pct": 60,</text>
+        <text class="label" x="336" y="172">"state": "RESERVE_RETURN",</text>
+        <text class="label" x="336" y="192">"rth_reason": "battery"</text>
+        <text class="label" x="320" y="216">}</text>
+      </g>
+      <path class="edge arrow" d="M300 300 C 280 300, 270 302, 250 302"/>
+      <text class="label" x="306" y="296">state and reserve_pct drive the banner</text>
+      <text class="label" x="306" y="314">without the app computing anything</text>
+    </svg>
+  </figure>
+  <p>The app only shows what the drone reports. Three new telemetry fields carry the decision and its reason, so the server forwards them unchanged.</p>
+</section>
+
+<section id="steps">
+  <h2>Steps</h2>
+  <ol class="steps">
+    <li class="step new"><b>Estimator in the battery module</b><small>need to get home every second, logged for 2 weeks without acting</small></li>
+    <li class="step changed"><b>Failsafe triggers reserve return</b><small>behind a flag, simulated with wind profiles</small></li>
+    <li class="step changed"><b>Telemetry with three new fields</b><small>the app ignores unknown fields, safe to ship first</small></li>
+    <li class="step new"><b>Banner and “Continue anyway” in the app</b><small>depends on the override answer</small></li>
+  </ol>
+  <div class="callout decision"><b>Flag per drone or per fleet</b>A first rollout on three drones needs a per-drone flag; the server only has fleet flags today.</div>
+  <div class="callout question"><b>Do we log enough?</b>Two weeks of estimates without acting compare against real use, but only if the log keeps the wind reading.</div>
+</section>
+
+<section id="where">
+  <h2>Where</h2>
+  <table class="files">
+    <tr><th>Module</th><th>Change</th></tr>
+    <tr><td>firmware/battery/estimator</td><td>new: need to get home from use, distance and wind</td></tr>
+    <tr><td>firmware/failsafe</td><td>reserve return as a trigger</td></tr>
+    <tr><td>firmware/comms/telemetry</td><td>reserve_pct, state, rth_reason</td></tr>
+    <tr><td>app/flight/banner</td><td>new banner and override</td></tr>
+  </table>
+</section>

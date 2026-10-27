@@ -1100,6 +1100,32 @@ async function checkLive(browser, url, dir) {
   check(!fs.readFileSync(out, 'utf8').includes('data:text/javascript'), 'export: a page without live figures carries no three.js');
 }
 
+// The showcase is what agents read to see each technique written out; it must keep rendering as the shell changes.
+async function checkShowcase() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'explainer-showcase-'));
+  const source = path.join(here, '..', 'showcase.body.html');
+  check(fs.existsSync(source), 'showcase: the skill ships a showcase page');
+  if (!fs.existsSync(source)) {
+    return;
+  }
+  fs.copyFileSync(source, path.join(dir, 'showcase.body.html'));
+  const { child, url } = await startServer(dir, { port: '4893' });
+  const browser = await launch(['--use-angle=swiftshader', '--enable-unsafe-swiftshader']);
+  try {
+    const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(new URL('../showcase/', url).href);
+    await page.waitForTimeout(2500);
+    const live = await page.evaluate(() => [...document.querySelectorAll('main figure.live .live-stage')].map((s) => (s.classList.contains('failed') ? s.textContent : s.childElementCount)));
+    check(live.length === 2 && live.every((n) => typeof n === 'number' && n > 0) && errors.length === 0, `showcase: every live figure mounts without errors (${JSON.stringify({ live, errors })})`);
+    check((await page.locator('main figure svg').count()) >= 5, 'showcase: the drawings render');
+  } finally {
+    await browser.close();
+    child.kill();
+  }
+}
+
 async function main() {
   check(cssBalanced(), 'shell.html: CSS braces balance');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'explainer-check-'));
@@ -1128,6 +1154,7 @@ async function main() {
     await checkLegend(browser, url, dir);
     await checkDrawing(browser, url, dir);
     await checkLive(browser, url, dir);
+    await checkShowcase();
     await checkRemote(dir);
     await checkUpdate(browser, dir);
   } finally {

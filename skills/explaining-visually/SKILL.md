@@ -21,7 +21,7 @@ If the user has not asked for a visual explainer, your first reply is one questi
 
 A fragment — no `<html>` or `<style>`, and no `<script>` outside a live figure. Content in the conversation's language; identifiers as-is.
 
-**Plan** (before anything is built) — `<h1 data-mode="plan">`, then: `<p class="lede">` with the change in one sentence; the questions (below); `<ul class="tldr">` Why / What changes / Size; **Today** as a `.flow`; **After** as `.cols` Before/After with boxes `new` / `changed` / `removed`; **Steps** as `<ol class="steps">`, one commit-sized `.step` each; **Open decisions**, one `.callout.decision` each, only for what nobody can settle yet; **Where** as `table.files`.
+**Plan** (before anything is built) — `<h1 data-mode="plan">`, then: `<p class="lede">` with the change in one sentence; the questions (below); `<ul class="tldr">` Why / What changes / Size; **Today** drawn in the shape it has (see Drawing); **After** as `.cols` Before/After with boxes `new` / `changed` / `removed`; **Steps** as `<ol class="steps">`, one commit-sized `.step` each; **Open decisions**, one `.callout.decision` each, only for what nobody can settle yet; **Where** as `table.files`.
 
 **As-built** (what exists) — `<h1 data-mode="as-built">`, then: lede and a 3–4 item `.tldr`; **Map**, one drawing of the whole mechanism (see Drawing); **one section per concept**, visual first, then at most two sentences and a `file:line` where there is code; **Traps** as `.callout.trap`; **Where** as `table.files` (a topic with no code behind it: a lookup table instead).
 
@@ -70,11 +70,11 @@ An element whose detail does not fit its box text and its section's prose gets t
 
 State classes say where a box or node stands against today, never decoration: `new` / `changed` / `removed` belong to a plan's After and Steps; `focus` marks what its section is about, and is the only state on an as-built page. The page puts a legend of the states used above each coloured group. Inside a drawing, palette colours may tell kinds of things apart; they never stand for a state.
 
-Everything is commentable automatically. `example.body.html` shows a full plan.
+Everything is commentable automatically. `example.body.html` shows a full plan. `showcase.body.html` writes out every kind of drawing and both kinds of live figure on one page: read it for how a technique is written, never for what a page should contain. Each reader and each task needs its own way of showing; pick from what fits, and invent where nothing does.
 
 ## Drawing
 
-Each visual takes the shape of what it shows. A row of boxes and arrows fits a pipeline and nothing else.
+Each visual takes the shape of what it shows. A row of boxes and arrows fits a pipeline and nothing else. The table is a starting point, not a list to choose from.
 
 | The thing has | Draw |
 |---|---|
@@ -111,7 +111,7 @@ Prefer a drawing. A live figure is for what no drawing shows: a 3D shape the rea
 ```
 
 - Only the default export runs, with the stage the page puts after the script. Keep the module free of top-level side effects.
-- `palette` holds hex for `fg` `bg` `card` `muted` `line` `accent` `new` `changed` `removed`, `flame` / `truffle` / `blueFantastic` `[100…900]`, and `dark`. The page remounts the figure after every edit and theme change, so the returned cleanup must leave nothing running.
+- `palette` holds hex for `fg` `bg` `card` `muted` `line` `accent` `new` `changed` `removed`, `flame` / `truffle` / `blueFantastic` at steps 100–400 and 600–900, and `dark`. The page remounts the figure after every edit and theme change, so the returned cleanup must leave nothing running.
 - Its own controls (sliders, toggles) belong to it and count as nothing else. With `reducedMotion`, start still and let the reader drive. A 2D figure needs no library: a `<canvas>` or SVG in the stage.
 - Clicks inside the stage belong to the figure; the reader comments through the figure's comment button or its caption.
 
