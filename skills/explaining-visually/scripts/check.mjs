@@ -326,6 +326,17 @@ async function checkServerThreads(url, dir) {
   check((await postResolve(url, { target, resolved: false })) === 200 && !(await state(url)).resolved?.[target], 'threads: a resolved target can be reopened');
   check((await postResolve(url, {}, { origin: 'http://evil.example' })) === 403, 'threads: resolve refuses a foreign origin');
   resetPage(dir);
+  await postComments(url, [{ id: 'wa', target, line: 60, text: 'answered before listening' }, { id: 'wb', target, line: 60, text: 'still open' }]);
+  replyTo(dir, 'wa', 'done');
+  const watcher = spawn(process.execPath, [path.join(here, 'serve.mjs'), 'example', '--dir', dir, '--watch'], { stdio: ['ignore', 'pipe', 'ignore'] });
+  let heard = '';
+  watcher.stdout.on('data', (chunk) => {
+    heard += chunk;
+  });
+  await new Promise((done) => setTimeout(done, 1500));
+  watcher.kill();
+  check(heard.includes('still open') && !heard.includes('answered before listening'), 'watch: a comment answered before the watcher starts is not delivered again');
+  resetPage(dir);
 }
 
 async function checkLiveUpdate(browser, url, dir) {

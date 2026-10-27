@@ -154,7 +154,9 @@ function watch() {
       const all = readComments(slug);
       const cursor = sidecar(slug, 'cursor');
       const seen = Number(readJson(cursor, 0));
-      all.slice(seen).forEach((c) => console.log(oneLine(slug, c)));
+      // Replies written while no watcher ran (the --pending pass) already answered these.
+      const replies = readJson(sidecar(slug, 'replies.json'), {});
+      all.slice(seen).filter((c) => !replies[c.id]).forEach((c) => console.log(oneLine(slug, c)));
       if (all.length > seen) {
         fs.writeFileSync(cursor, String(all.length));
       }
