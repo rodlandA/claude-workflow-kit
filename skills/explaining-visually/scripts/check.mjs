@@ -520,6 +520,21 @@ async function checkMarginMotion(browser, url, dir) {
   await page.waitForTimeout(200);
   await page.locator('main h1').click();
   await upper.hover();
+  const lowerKey = items[1].target;
+  const departure = page.evaluate((key) => new Promise((done) => {
+    const frames = [];
+    const read = () => {
+      const gone = document.querySelector('.margin .thread.leaving');
+      const lower = document.querySelector(`.margin .thread[data-key="${key}"]`).getBoundingClientRect().top;
+      frames.push({ lower, leaving: gone ? gone.getBoundingClientRect().bottom : null });
+      if (frames.length < 70) {
+        requestAnimationFrame(() => setTimeout(read, 0));
+      } else {
+        done(frames);
+      }
+    };
+    read();
+  }), lowerKey);
   await upper.locator('[data-a=resolve]').click();
   await page.waitForTimeout(120);
   const leaving = await page.evaluate(() => {
@@ -529,6 +544,8 @@ async function checkMarginMotion(browser, url, dir) {
   check(Boolean(leaving) && leaving.opacity < 1 && leaving.x > 0, `motion: a resolved thread slides out to the right (${JSON.stringify(leaving)})`);
   await page.waitForTimeout(600);
   check((await page.locator('.margin .thread.leaving').count()) === 0, 'motion: the resolved thread is gone once it has slid out');
+  const left = await departure;
+  check(left.every((f) => f.leaving === null || f.lower >= f.leaving - 0.5) && left.find((f) => f.leaving !== null).lower === left[0].lower && left.at(-1).lower < left[0].lower, 'motion: the thread below moves up only as the resolved one gives up its place');
   await page.close();
   resetPage(dir);
 }

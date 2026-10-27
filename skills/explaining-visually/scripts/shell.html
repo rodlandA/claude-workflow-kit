@@ -2510,7 +2510,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     const keys = new Set(open.map((t) => t.key));
     cards.forEach((entry, key) => {
       if (!keys.has(key)) {
-        leave(entry.el);
+        leave(entry);
         cards.delete(key);
       }
     });
@@ -2540,15 +2540,42 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     layoutMargin();
     renderBadges();
     cardSizes.disconnect();
-    cards.forEach(({ el }) => cardSizes.observe(el));
+    [...cards.values(), ...leavers.values()].forEach(({ el }) => cardSizes.observe(el));
   }
 
-  function leave(el) {
+  const leavers = new Map();
+
+  // A resolved card keeps its place while it slides out, then gives it up as it collapses.
+  function leave({ el, thread }) {
     el.classList.remove('arrive');
     el.classList.add('leaving');
     delete el.dataset.key;
-    setTimeout(() => el.remove(), 400);
+    if (el.contains(document.activeElement)) {
+      document.activeElement.blur();
+    }
+    leavers.set(el, { el, thread, full: el.offsetHeight, top: parseFloat(el.style.top) || 0 });
+    setTimeout(() => collapse(el), 300);
   }
+
+  function collapse(el) {
+    const done = () => {
+      leavers.delete(el);
+      el.remove();
+      layoutMargin();
+    };
+    if (reducedMotion.matches || !el.offsetHeight) {
+      done();
+      return;
+    }
+    el.style.overflow = 'clip';
+    el.animate([{ height: `${el.offsetHeight}px` }, { height: '0px', paddingBlock: '0px', borderWidth: '0px' }], { duration: 260, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' }).finished.then(done, done);
+  }
+
+  // A collapsing card's height and its gap shrink together, so the card below closes up without a jump at the end.
+  const spaceOf = (entry, gap) => {
+    const leaver = leavers.get(entry.el);
+    return leaver ? (entry.el.offsetHeight * (leaver.full + gap)) / leaver.full - gap : entry.el.offsetHeight;
+  };
 
   const cardHeights = new WeakMap();
 
@@ -2618,12 +2645,12 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     }
     const base = margin.getBoundingClientRect();
     const head = parseFloat(getComputedStyle(margin).paddingTop);
-    const placed = [...cards.values()].map((entry) => {
-      const anchor = anchorFor(entry.thread);
-      const wanted = anchor ? anchor.getBoundingClientRect().top - base.top : head;
-      return { entry, anchor, wanted, order: entry.thread.key === 'document' ? -Infinity : wanted };
-    }).sort((a, b) => a.order - b.order);
-    const tops = layoutThreads(placed.map((p) => p.wanted), placed.map((p) => p.entry.el.offsetHeight));
+    const placed = [...cards.values(), ...leavers.values()].map((entry) => {
+      const anchor = entry.top === undefined ? anchorFor(entry.thread) : null;
+      const wanted = anchor ? anchor.getBoundingClientRect().top - base.top : entry.top ?? head;
+      return { entry, anchor, wanted, order: entry.thread.key === 'document' ? -Infinity : Math.round(wanted), now: parseFloat(entry.el.style.top) || 0 };
+    }).sort((a, b) => a.order - b.order || a.now - b.now);
+    const tops = layoutThreads(placed.map((p) => p.wanted), placed.map((p) => spaceOf(p.entry, 8)));
     placed.forEach((p, i) => {
       p.entry.el.style.top = `${tops[i]}px`;
     });
