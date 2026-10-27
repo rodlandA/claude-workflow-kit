@@ -476,6 +476,63 @@ async function checkMarginLayout(browser, url, dir) {
   resetPage(dir);
 }
 
+const marginFrames = (page, ms) => page.evaluate((span) => new Promise((done) => {
+  const frames = [];
+  const t0 = performance.now();
+  const read = () => {
+    frames.push([...document.querySelectorAll('.margin .thread:not(.general, .leaving)')].map((el) => el.getBoundingClientRect()).sort((a, b) => a.top - b.top).map((r) => ({ top: r.top, bottom: r.bottom })));
+    if (performance.now() - t0 < span) {
+      requestAnimationFrame(tick);
+    } else {
+      done(frames);
+    }
+  };
+  // Read after the frame has rendered, so resize observers have run as they do before paint.
+  const tick = () => setTimeout(read, 0);
+  requestAnimationFrame(tick);
+}), ms);
+
+// No frame lets the threads overlap or opens a gap wider than where the motion starts or ends.
+const inStep = (frames) => {
+  const gaps = frames.map(([a, b]) => (b ? b.top - a.bottom : -1));
+  return Math.min(...gaps) >= 7.5 && Math.max(...gaps) <= Math.max(gaps[0], gaps.at(-1)) + 1.5;
+};
+
+async function checkMarginMotion(browser, url, dir) {
+  resetPage(dir);
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const items = await page.evaluate(() => [...document.querySelectorAll('.tldr li')].slice(0, 2).map((li) => ({ target: li.dataset.ct, line: Number(li.dataset.line) })));
+  await postComments(url, items.map((c, i) => ({ id: `mot${i}`, ...c, text: `a longer point number ${i} that wraps over a couple of lines in the margin` })));
+  await page.waitForTimeout(2600);
+  const upper = page.locator(`.margin .thread[data-key="${items[0].target}"]`);
+  await upper.hover();
+  let frames = marginFrames(page, 450);
+  await upper.locator('[data-a=fold]').click();
+  frames = await frames;
+  check(frames[0][1].top - frames[0][0].bottom < 9 && inStep(frames), 'motion: folding a thread moves the thread below in step');
+  await page.waitForTimeout(200);
+  frames = marginFrames(page, 450);
+  await upper.click();
+  frames = await frames;
+  check(inStep(frames), 'motion: unfolding a thread pushes the thread below in step');
+  await page.waitForTimeout(200);
+  await page.locator('main h1').click();
+  await upper.hover();
+  await upper.locator('[data-a=resolve]').click();
+  await page.waitForTimeout(120);
+  const leaving = await page.evaluate(() => {
+    const el = document.querySelector('.margin .thread.leaving');
+    return el && { opacity: Number(getComputedStyle(el).opacity), x: new DOMMatrix(getComputedStyle(el).transform).m41 };
+  });
+  check(Boolean(leaving) && leaving.opacity < 1 && leaving.x > 0, `motion: a resolved thread slides out to the right (${JSON.stringify(leaving)})`);
+  await page.waitForTimeout(600);
+  check((await page.locator('.margin .thread.leaving').count()) === 0, 'motion: the resolved thread is gone once it has slid out');
+  await page.close();
+  resetPage(dir);
+}
+
 const pendingLines = (dir) => execFileSync(process.execPath, [path.join(here, 'serve.mjs'), '--pending', '--dir', dir], { encoding: 'utf8' });
 const inView = (page, sel) => page.evaluate((s) => {
   const r = document.querySelector(s).getBoundingClientRect();
@@ -960,6 +1017,7 @@ async function main() {
     await checkLiveUpdate(browser, url, dir);
     await checkMarginReply(browser, url, dir);
     await checkMarginLayout(browser, url, dir);
+    await checkMarginMotion(browser, url, dir);
     await checkThreadActions(browser, url, dir);
     await checkOffscreen(browser, url, dir);
     await checkExpand(browser, url, dir);

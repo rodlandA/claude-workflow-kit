@@ -402,8 +402,12 @@ nav.toc a .loader { width: 10px; height: 10px; margin-left: 6px; vertical-align:
 .thread.arrive, .thread .msg.arrive { animation: thread-in .42s cubic-bezier(.2, .8, .2, 1) both; }
 @keyframes thread-in { from { opacity: 0; transform: translateX(40px); } }
 @keyframes fade-in { from { opacity: 0; } }
+.thread.leaving { pointer-events: none; animation: thread-out .3s cubic-bezier(.4, 0, 1, 1) forwards; }
+@keyframes thread-out { to { opacity: 0; transform: translateX(60px); } }
+@keyframes fade-out { to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .thread { transition: none; }
+  .thread.leaving { animation-name: fade-out; }
   .thread .tools .row { transition: opacity .2s, visibility .2s; }
   .thread.arrive, .thread .msg.arrive, .offscreen-note { animation-name: fade-in; }
 }
@@ -2506,7 +2510,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     const keys = new Set(open.map((t) => t.key));
     cards.forEach((entry, key) => {
       if (!keys.has(key)) {
-        entry.el.remove();
+        leave(entry.el);
         cards.delete(key);
       }
     });
@@ -2521,7 +2525,9 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       markArrivals(el, !entry);
       if (entry) {
         keepTyping(entry.el, el);
+        const from = { box: entry.el.getBoundingClientRect(), radius: getComputedStyle(entry.el).borderRadius };
         entry.el.replaceWith(el);
+        morph(el, from);
       } else {
         $('.margin').append(el);
       }
@@ -2537,7 +2543,34 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     cards.forEach(({ el }) => cardSizes.observe(el));
   }
 
+  function leave(el) {
+    el.classList.remove('arrive');
+    el.classList.add('leaving');
+    delete el.dataset.key;
+    setTimeout(() => el.remove(), 400);
+  }
+
   const cardHeights = new WeakMap();
+
+  // A rebuilt card eases from its old size to its new one; widening is clipped, not animated, so text never rewraps midway.
+  function morph(el, from) {
+    const to = { box: el.getBoundingClientRect(), radius: getComputedStyle(el).borderRadius };
+    if (reducedMotion.matches || (Math.abs(from.box.height - to.box.height) < 1 && Math.abs(from.box.width - to.box.width) < 1)) {
+      return;
+    }
+    const start = { height: `${from.box.height}px`, borderRadius: from.radius };
+    const end = { height: `${to.box.height}px`, borderRadius: to.radius };
+    if (to.box.width > from.box.width) {
+      start.clipPath = `inset(0 ${to.box.width - from.box.width}px 0 0 round ${from.radius})`;
+      end.clipPath = `inset(0 0 0 0 round ${to.radius})`;
+    } else {
+      start.width = `${from.box.width}px`;
+      end.width = `${to.box.width}px`;
+    }
+    cardHeights.set(el, from.box.height);
+    el.style.overflow = 'clip';
+    el.animate([start, end], { duration: 300, easing: 'cubic-bezier(.2, .8, .2, 1)' }).finished.then(() => el.style.removeProperty('overflow'), () => {});
+  }
 
   // A card that grows in place (reply row, typing) moves the cards below in the same frame, without the glide lagging behind.
   const cardSizes = new ResizeObserver((entries) => {
