@@ -1080,9 +1080,12 @@ async function checkLive(browser, url, dir) {
   await page.waitForTimeout(500);
   const counts = () => page.evaluate(() => [window.liveMounts, window.liveCleanups ?? 0]);
   check(JSON.stringify(await counts()) === '[2,1]' && (await stage.getAttribute('data-fg')) === await fg(), 'live: a theme change cleans up and remounts with the new palette');
+  await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
+  await page.waitForTimeout(500);
+  check(JSON.stringify(await counts()) === '[3,2]', 'live: a change in reduced motion remounts the figure');
   editBody(dir, '<figcaption>Spins.</figcaption>', '<figcaption>Spins slowly.</figcaption>');
   await page.waitForTimeout(3000);
-  check(JSON.stringify(await counts()) === '[3,2]' && (await page.locator('#today figure.live .live-stage').getAttribute('data-rev')) === '168', 'live: an edit cleans up the old figure and mounts the new one');
+  check(JSON.stringify(await counts()) === '[4,3]' && (await page.locator('#today figure.live .live-stage').getAttribute('data-rev')) === '168', 'live: an edit cleans up the old figure and mounts the new one');
   await page.close();
   const out = path.join(dir, 'live-export.html');
   execFileSync(process.execPath, [path.join(here, 'serve.mjs'), 'example', '--dir', dir, '--export', out]);

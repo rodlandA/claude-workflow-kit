@@ -23,7 +23,7 @@
   --on-accent: light-dark(#eee9df, #1b2632);
   --flame: #ffb162; --on-flame: #1b2632;
   --truffle: #a35139; --blue-fantastic: #2c3b4d; --abyssal: #1b2632; --palladian: #eee9df;
-  --paper: light-dark(var(--palladian), var(--abyssal)); --ink: light-dark(var(--abyssal), var(--palladian));
+  --paper: var(--bg); --ink: light-dark(var(--abyssal), var(--palladian));
   /* Steps 100-400 mix the hue into the page colour (12/30/52/76%), 600-900 into the text colour (76/52/30/12%), so 100 sits nearest the page in either theme. */
   --flame-100: color-mix(in oklab, var(--flame) 12%, var(--paper));
   --flame-200: color-mix(in oklab, var(--flame) 30%, var(--paper));
@@ -3006,6 +3006,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   $('#theme').onclick = toggleTheme;
   systemDark.addEventListener('change', showThemeButton);
   systemDark.addEventListener('change', () => syncLives(true));
+  reducedMotion.addEventListener('change', () => syncLives(true));
   new MutationObserver(() => syncLives(true)).observe(document.documentElement, { attributeFilter: ['data-theme'] });
   $('.panel .general [data-a=batch]').onclick = () => submitGeneral(false);
   $('.panel .general [data-a=send]').onclick = () => submitGeneral(true);

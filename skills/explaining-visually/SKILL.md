@@ -19,11 +19,11 @@ If the user has not asked for a visual explainer, your first reply is one questi
 
 ## The body, by mode
 
-A fragment — no `<html>`, `<style>` or `<script>`. Content in the conversation's language; identifiers as-is.
+A fragment — no `<html>` or `<style>`, and no `<script>` outside a live figure. Content in the conversation's language; identifiers as-is.
 
 **Plan** (before anything is built) — `<h1 data-mode="plan">`, then: `<p class="lede">` with the change in one sentence; the questions (below); `<ul class="tldr">` Why / What changes / Size; **Today** as a `.flow`; **After** as `.cols` Before/After with boxes `new` / `changed` / `removed`; **Steps** as `<ol class="steps">`, one commit-sized `.step` each; **Open decisions**, one `.callout.decision` each, only for what nobody can settle yet; **Where** as `table.files`.
 
-**As-built** (what exists) — `<h1 data-mode="as-built">`, then: lede and a 3–4 item `.tldr`; **Map**, one drawing of the whole mechanism (see Drawing); **one section per concept**, visual first, then at most two sentences and a `file:line`; **Traps** as `.callout.trap`; **Where** as `table.files`.
+**As-built** (what exists) — `<h1 data-mode="as-built">`, then: lede and a 3–4 item `.tldr`; **Map**, one drawing of the whole mechanism (see Drawing); **one section per concept**, visual first, then at most two sentences and a `file:line` where there is code; **Traps** as `.callout.trap`; **Where** as `table.files` (a topic with no code behind it: a lookup table instead).
 
 ## Questions (plan mode)
 
@@ -46,7 +46,8 @@ When the plan depends on something only the user can settle, ask it on the page.
 | Sections | 4–8 `<section id>` in total, each with one `<h2>` |
 | Prose | text in `<p>` and callouts: ≤ 60 words per section, ≤ 600 in total |
 | Box text | `<b>` name + `<small>` ≤ 8 words |
-| Interactive widgets | only when asked |
+| Live figures | at most 1, only where motion, rotation or a parameter teaches (see Live figures) |
+| Other interactive widgets | only when asked |
 
 Over budget: merge related concepts; still over, the topic is two explainers — say so and split.
 
@@ -65,8 +66,9 @@ An element whose detail does not fit its box text and its section's prose gets t
 | Callouts | `<div class="callout trap\|decision\|question"><b>Label</b>text</div>` |
 | Lookup table | `<table class="files">`, any short two- or three-column table |
 | Drawing | `<figure><svg viewBox="…" aria-label="…">`, see Drawing |
+| Live figure | `<figure class="live" data-c="…">` with a module script, see Live figures |
 
-Colour is a box's state against today, never decoration: `new` / `changed` / `removed` belong to a plan's After and Steps; `focus` marks what its section is about, and is the only colour on an as-built page. The page puts a legend of the states used above each coloured group.
+State classes say where a box or node stands against today, never decoration: `new` / `changed` / `removed` belong to a plan's After and Steps; `focus` marks what its section is about, and is the only state on an as-built page. The page puts a legend of the states used above each coloured group. Inside a drawing, palette colours may tell kinds of things apart; they never stand for a state.
 
 Everything is commentable automatically. `example.body.html` shows a full plan.
 
@@ -84,7 +86,34 @@ Each visual takes the shape of what it shows. A row of boxes and arrows fits a p
 | sizes, rates, limits | a scale or bars drawn to proportion |
 | a pipeline | a `.flow` |
 
-Draw as inline SVG in a `<figure>`, with a `viewBox` and no fixed width. Small illustrations and icons are welcome where they make a part recognisable. Shell classes: `node` (a shape), `node new` / `changed` / `removed` / `focus` (state), `edge` (a line), `edge arrow` (with arrowhead), `edge dashed`, `lane` (background band), `text.label` (small mono caption), `muted`. Any other colour as `var(--…)`: `--flame-100` … `--flame-900`, likewise `--truffle-*` and `--blue-fantastic-*`, so both themes work. Wrap each part a reader may comment on in `<g data-c="Name">`.
+Draw as inline SVG in a `<figure>`, with a `viewBox` and no fixed width. The content column is 760px wide, so `viewBox="0 0 760 …"` draws at 1:1; a `text.label` character is about 6.6px wide. Small illustrations and icons are welcome where they make a part recognisable; `<defs>` (patterns, gradients) and one line of `<figcaption>` are fine. Ids are page-wide, so prefix them with the figure's name.
+
+Shell classes: `node` (a shape), `node new` / `changed` / `removed` / `focus` (state), `edge` (a line), `edge arrow` (with arrowhead), `edge dashed`, `lane` (background band), `text.label` (small mono caption), `muted`. Any other colour goes in `style`, since an attribute cannot hold `var()`: `<rect style="fill: var(--flame-200)">`. Each hue — `--flame-*` (warm), `--truffle-*` (red-brown), `--blue-fantastic-*` (cool; the dark page's own colour, so its 100–400 vanish there) — runs from 100, nearest the page, to 900, nearest the text, in either theme: 100–300 for fills under `--fg` text, 600–900 for lines and dark marks. `--fg`, `--muted` and `--accent` are safe for lines in both themes.
+
+Wrap each part a reader may comment on in `<g data-c="Name">`; an `aside.more` with `data-for="Name"` gives that part its `i` badge, drawn on the corner of the part's bounding box, so keep about 8px clear there.
+
+## Live figures
+
+Prefer a drawing. A live figure is for what no drawing shows: a 3D shape the reader turns, a parameter whose effect they drag, a process that plays out over time.
+
+```html
+<figure class="live" data-c="Frustum">
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    export default (stage, { palette, reducedMotion }) => {
+      // draw into stage, a 16:9 box; size from stage.clientWidth / clientHeight
+      return () => { /* stop loops, observers and listeners; dispose the renderer */ };
+    };
+  </script>
+  <figcaption>What to try, in one line.</figcaption>
+</figure>
+```
+
+- Only the default export runs, with the stage the page puts after the script. Keep the module free of top-level side effects.
+- `palette` holds hex for `fg` `bg` `card` `muted` `line` `accent` `new` `changed` `removed`, `flame` / `truffle` / `blueFantastic` `[100…900]`, and `dark`. The page remounts the figure after every edit and theme change, so the returned cleanup must leave nothing running.
+- Its own controls (sliders, toggles) belong to it and count as nothing else. With `reducedMotion`, start still and let the reader drive. A 2D figure needs no library: a `<canvas>` or SVG in the stage.
+- Clicks inside the stage belong to the figure; the reader comments through the figure's comment button or its caption.
 
 ## The comment loop
 
@@ -137,7 +166,7 @@ The server checks GitHub hourly for a newer release. The index page and the stat
 
 ## Changing the shell or server
 
-After editing `scripts/shell.html` or `scripts/serve.mjs`, run `node ~/.claude/skills/explaining-visually/scripts/check.mjs` (once: `npm --prefix ~/.claude/skills/explaining-visually/scripts install`). It must end with `all passed`.
+After editing `scripts/shell.html` or `scripts/serve.mjs`, run `node ~/.claude/skills/explaining-visually/scripts/check.mjs` (once: `npm --prefix ~/.claude/skills/explaining-visually/scripts install`). It must end with `all passed`. A server already running keeps its old `serve.mjs`; restart it.
 
 To release, bump `version` in `scripts/package.json`, merge, then tag the merge commit `explaining-visually-v<version>` and push the tag.
 
@@ -145,7 +174,7 @@ To release, bump `version` in `scripts/package.json`, merge, then tag the merge 
 
 | Mistake | Fix |
 |---|---|
-| Own CSS/JS, or a full HTML page | Fragment only; the shell owns all of it |
+| Own CSS/JS, or a full HTML page | Fragment only; the shell owns all of it, except a live figure's module |
 | Rewriting the body for one comment | Edit the element at `L<line>` |
 | No reply after an edit | The comment stays "waiting"; always `--reply` |
 | A choice the user must make, written as an Open decisions callout | A `.q`, so it is answered on top instead of commented on |
