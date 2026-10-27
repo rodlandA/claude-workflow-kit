@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import { execFileSync } from 'node:child_process';
-import { check, startServer, request, waitFor, here } from './harness.mjs';
+import { check, startServer, request, waitFor, here, until } from './harness.mjs';
 
 // A copied install of version 1.0.0 against a fake GitHub that has tagged 9.9.9.
 function fakeGithub(skill) {
@@ -74,7 +74,7 @@ export async function checkUpdate(browser, dir) {
     restarted = after?.pid ?? null;
     const state = await (await fetch(stateUrl)).json();
     check(Boolean(after) && state.version === '9.9.9' && !state.update, 'update: a new server on the same port runs 9.9.9 and offers nothing further');
-    await tab.waitForTimeout(1500);
+    await until(tab, () => (document.querySelector('#status')?.title ?? '').endsWith('explaining-visually 9.9.9'), null, 10000);
     check(await button.isHidden() && (await tab.locator('#status').getAttribute('title')).endsWith('explaining-visually 9.9.9'), 'update: the reloaded page runs 9.9.9 without an Update button');
     const previous = path.join(home, '.claude', 'explainers', '.update', 'previous', 'scripts', 'package.json');
     check(fs.readFileSync(previous, 'utf8').includes('"version": "1.0.0"'), 'update: the previous version is kept outside the skills folder');

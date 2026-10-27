@@ -100,7 +100,7 @@ export async function waitFor(probeOnce, tries = 60) {
 
 export async function linkedTo(page, key) {
   await page.locator(`.margin .thread[data-key="${key}"]`).hover();
-  await page.waitForTimeout(100);
+  await settled(page);
   return page.evaluate(() => [...document.querySelectorAll('main .linked')].map((el) => el.dataset.ct));
 }
 
@@ -110,3 +110,57 @@ export const inView = (page, sel) => page.evaluate((s) => {
   const r = document.querySelector(s).getBoundingClientRect();
   return r.top >= 0 && r.bottom <= innerHeight;
 }, sel);
+
+// True once fn(arg) holds in the page, false on timeout, so a slow page fails its check instead of ending the run.
+export async function until(page, fn, arg, timeout = 8000) {
+  try {
+    await page.waitForFunction(fn, arg, { timeout, polling: 50 });
+    return true;
+  } catch {
+    if (process.env.TEST_DEBUG) {
+      console.error(`timed out after ${timeout}ms: ${String(fn).slice(0, 160)}`);
+    }
+    return false;
+  }
+}
+
+// Animations and view transitions have finished; spinners that loop forever do not count.
+export const settled = async (page) => {
+  const done = await until(page, () => ![...document.documentElement.classList].some((c) => c.startsWith('vt-'))
+    && document.getAnimations().every((a) => a.effect?.getTiming().iterations === Infinity || a.playState !== 'running'));
+  if (!done && process.env.TEST_DEBUG) {
+    console.error(await page.evaluate(() => JSON.stringify({ classes: document.documentElement.className, running: document.getAnimations().filter((a) => a.playState === 'running').map((a) => [a.constructor.name, a.animationName ?? a.transitionProperty ?? '', a.effect?.target?.className ?? a.effect?.pseudoElement, a.effect?.getTiming().iterations, a.effect?.getTiming().duration]) })));
+  }
+  return done;
+};
+
+// The first poll has rendered status, threads and questions, and the fonts are in.
+export async function ready(page) {
+  await until(page, () => Boolean(document.querySelector('#status')?.dataset.kind) && document.fonts.status === 'loaded');
+  await settled(page);
+}
+
+export async function openPage(browser, url, viewport = { width: 1512, height: 900 }) {
+  const page = await browser.newPage({ viewport });
+  await page.goto(url);
+  await ready(page);
+  return page;
+}
+
+// Marks the element, runs the edit, and resolves once the page has swapped in a fresh copy of it.
+export async function afterEdit(page, selector, edit) {
+  await page.evaluate((s) => {
+    document.querySelector(s).dataset.stale = '1';
+  }, selector);
+  edit();
+  const swapped = await until(page, (s) => Boolean(document.querySelector(s)) && !document.querySelector(s).dataset.stale, selector);
+  await settled(page);
+  return swapped;
+}
+
+// Two readings of the scroll position 50ms apart agree, so a smooth scroll has come to rest.
+export const scrolled = (page) => until(page, () => {
+  const last = window.lastScrollY;
+  window.lastScrollY = scrollY;
+  return last === scrollY;
+});

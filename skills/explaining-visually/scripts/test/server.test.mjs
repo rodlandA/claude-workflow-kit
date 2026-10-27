@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
-import { check, startServer, launch, exchange, request, resetPage, editBody, replyTo, postComments, state, postResolve, here } from './harness.mjs';
+import { check, startServer, launch, exchange, request, resetPage, editBody, replyTo, postComments, state, postResolve, here, waitFor } from './harness.mjs';
 
 export async function checkServerGuards(url, dir) {
   const comments = new URL('comments', url).href;
@@ -54,7 +54,7 @@ export async function checkServerThreads(url, dir) {
   watcher.stdout.on('data', (chunk) => {
     heard += chunk;
   });
-  await new Promise((done) => setTimeout(done, 1500));
+  await waitFor(async () => heard.includes('still open'));
   watcher.kill();
   check(heard.includes('still open') && !heard.includes('answered before listening'), 'watch: a comment answered before the watcher starts is not delivered again');
   resetPage(dir);
