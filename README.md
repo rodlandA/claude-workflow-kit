@@ -83,9 +83,9 @@ element to comment, answer the agent's questions, ask for more depth, and approv
 comment reaches the agent with the line it points at; the page updates in place, and the reply
 appears in a thread beside the element with what it changed outlined.
 
-![A comment on a plan reaches the agent, which revises the plan and replies on the page](docs/explaining-visually.gif)
+![A plan page: a comment on a state diagram gets a reply in the margin, a slider turns the drone back, a 3D view follows it home, and the page switches to dark](docs/explaining-visually-tour.gif)
 
-<sub>Demo recording: the page, the server and the events are real; the agent's edits were written in advance and run on cue.</sub>
+<sub>Demo recording: the page, the server and the comment are real; the agent's reply and edit were written in advance and run on cue.</sub>
 
 On your phone, through Remote Control, the same loop works with `--remote`: see
 [Explainers from your phone](docs/explaining-visually-remote.md), which includes a short
