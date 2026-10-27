@@ -78,9 +78,10 @@ One task = one worktree = one branch = one PR. The main checkout stays on the de
 ## Plans you can comment on
 
 The `explaining-visually` skill (package G in `ADOPT.md`) turns a plan or a walkthrough into a
-local page. Click any element to comment, answer the agent's questions, ask for more depth, and
-approve the plan. Each comment reaches the agent with the line it points at, and the page
-reloads with the change outlined.
+local page of drawings, diagrams and, where moving helps, live 2D or 3D figures. Click any
+element to comment, answer the agent's questions, ask for more depth, and approve the plan. Each
+comment reaches the agent with the line it points at; the page updates in place, and the reply
+appears in a thread beside the element with what it changed outlined.
 
 ![A comment on a plan reaches the agent, which revises the plan and replies on the page](docs/explaining-visually.gif)
 

@@ -1005,9 +1005,12 @@ const FIGURE = '<figure data-c="Sequence"><svg viewBox="0 0 300 90" aria-label="
 async function checkDrawing(browser, url, dir) {
   resetPage(dir);
   editBody(dir, '<h2>How a request is authenticated today</h2>', `<h2>How a request is authenticated today</h2>\n  ${FIGURE}`);
+  editBody(dir, '<li><b>Size</b>3 files, one migration step, no schema change.</li>', '<li><b>Size</b>3 files, one migration step, no schema change.</li>\n  <li><b>Risk</b>Low.</li>');
   const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
   await page.goto(url);
   await page.waitForTimeout(1200);
+  const rows = await page.evaluate(() => new Set([...document.querySelectorAll('.tldr li')].map((li) => Math.round(li.getBoundingClientRect().top))).size);
+  check(rows === 1, `layout: four tldr items share one row on a wide screen (${rows} rows)`);
   const drawn = await page.evaluate(() => {
     const fig = document.querySelector('#today figure');
     const marker = getComputedStyle(fig.querySelector('.edge.arrow')).markerEnd;
