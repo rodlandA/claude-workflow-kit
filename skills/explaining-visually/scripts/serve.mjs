@@ -191,11 +191,21 @@ function exportPage(out) {
   console.log(`exported ${out}`);
 }
 
+// A script's source is code, not markup: only its opening tag gets a line, and its contents are left as written.
 function withSourceLines(body) {
-  return body
-    .split('\n')
-    .map((line, i) => line.replace(/<([a-zA-Z][\w-]*)(?=[\s>/])/g, `<$1 data-line="${i + 1}"`))
-    .join('\n');
+  let line = 1;
+  return body.replace(/<script\b[^>]*>[\s\S]*?<\/script>|<([a-zA-Z][\w-]*)(?=[\s>/])|\n/g, (match, tag) => {
+    if (match === '\n') {
+      line += 1;
+      return match;
+    }
+    if (tag) {
+      return `<${tag} data-line="${line}"`;
+    }
+    const opened = match.replace(/^<script/, `<script data-line="${line}"`);
+    line += match.split('\n').length - 1;
+    return opened;
+  });
 }
 
 const titleOf = (slug, body) => {

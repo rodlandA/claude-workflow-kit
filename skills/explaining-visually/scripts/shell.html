@@ -2025,6 +2025,9 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     addSectionButtons();
     buildTocLinks();
     questions = [...document.querySelectorAll('main .q[id]')];
+    if (questions.length && !$('.qzone')) {
+      setupQuestions();
+    }
     reopened = reopened && questions.find((q) => q.id === reopened.id);
     workingSig = null;
     hot = null;
@@ -2584,6 +2587,8 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       badgeSig = sig;
       badges.forEach(([b]) => b.remove());
       badges = off.map(([t, anchor]) => [badge(t), anchor]);
+    } else {
+      badges = badges.map(([b], i) => [b, off[i][1]]);
     }
     positionBadges();
   }

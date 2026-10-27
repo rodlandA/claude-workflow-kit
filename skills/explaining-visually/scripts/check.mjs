@@ -976,6 +976,43 @@ async function checkUpdate(browser, dir) {
 
 const legendOf = (page, sel) => page.evaluate((s) => [...document.querySelectorAll(`${s} .legend`)].map((l) => [...l.children].map((c) => c.className).join(',')), sel);
 
+async function checkCodexFindings(browser, url, dir) {
+  resetPage(dir);
+  const file = path.join(dir, 'example.body.html');
+  const questions = fs.readFileSync(file, 'utf8').match(/^<div class="q" id="[^"]+">[\s\S]*?^<\/div>\n/gm);
+  fs.writeFileSync(file, questions.reduce((body, q) => body.replace(q, ''), fs.readFileSync(file, 'utf8')));
+  editBody(dir, '<p class="lede">', '<p class="lede">');
+  let page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const lede = fs.readFileSync(file, 'utf8').match(/<p class="lede">[\s\S]*?<\/p>\n/)[0];
+  editBody(dir, lede, `${lede}${questions.at(-1)}`);
+  await page.waitForTimeout(3000);
+  check(await page.locator('.qzone .qcard').isVisible() && (await page.locator('.qcard .qhead span').textContent()) === 'Question 1 of 1', 'questions: a question added by an edit shows on a page that had none');
+  await page.close();
+  resetPage(dir);
+  page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const box = await page.evaluate(() => {
+    const el = document.querySelector('main .box');
+    return { target: el.dataset.ct, line: Number(el.dataset.line) };
+  });
+  await postComments(url, [{ id: 'cx1', ...box, text: 'here' }]);
+  replyTo(dir, 'cx1', 'noted');
+  await page.waitForTimeout(2600);
+  editBody(dir, '<small>POST /login</small>', '<small>POST /signin</small>');
+  await page.waitForTimeout(3000);
+  const place = await page.evaluate(() => {
+    const badge = document.querySelector('.tbadge').getBoundingClientRect();
+    const el = document.querySelector('main .box').getBoundingClientRect();
+    return Math.round(Math.abs(badge.top + 11 - el.top));
+  });
+  check(place < 4, `badges: a thread counter stays on its element after an edit replaces it (${place}px off)`);
+  await page.close();
+  resetPage(dir);
+}
+
 async function checkLegend(browser, url, dir) {
   resetPage(dir);
   editBody(dir, '<div class="box"><b>Login form</b>', '<div class="box focus"><b>Login form</b>');
@@ -1067,6 +1104,7 @@ export default (el, { palette }) => {
   el.dataset.rev = THREE.REVISION;
   el.dataset.orbit = typeof OrbitControls;
   el.dataset.fg = palette.fg;
+  el.insertAdjacentHTML('beforeend', "<b class='marked'>x</b>");
   window.liveMounts = (window.liveMounts ?? 0) + 1;
   return () => { window.liveCleanups = (window.liveCleanups ?? 0) + 1; };
 };
@@ -1087,6 +1125,7 @@ async function checkLive(browser, url, dir) {
   });
   check((await stage.getAttribute('data-rev')) === '168' && (await stage.getAttribute('data-orbit')) === 'function', 'live: a live figure runs its module with three.js and its addons');
   check((await stage.getAttribute('data-fg')) === await fg(), 'live: the module gets the page palette as hex');
+  check((await stage.locator('b.marked').count()) === 1, 'live: markup in a module string is left as written, not stamped with source lines');
   await stage.click();
   await page.waitForTimeout(500);
   check((await page.locator('.pop').count()) === 0 && await page.locator('.sheet').isHidden(), 'live: clicking inside a live figure does not open a comment or the sheet');
@@ -1165,6 +1204,7 @@ async function main() {
     await checkOffscreen(browser, url, dir);
     await checkExpand(browser, url, dir);
     await checkReviewFixes(browser, url, dir);
+    await checkCodexFindings(browser, url, dir);
     await checkLegend(browser, url, dir);
     await checkDrawing(browser, url, dir);
     await checkLive(browser, url, dir);
