@@ -976,6 +976,17 @@ async function checkUpdate(browser, dir) {
 
 const legendOf = (page, sel) => page.evaluate((s) => [...document.querySelectorAll(`${s} .legend`)].map((l) => [...l.children].map((c) => c.className).join(',')), sel);
 
+async function checkTransitions(browser, url) {
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  await page.locator('main .box').first().click();
+  await page.waitForTimeout(1500);
+  const left = await page.evaluate(() => [...document.documentElement.classList].filter((c) => c.startsWith('vt-')));
+  check(left.length === 0, `transitions: opening a comment beside the sheet leaves no transition class behind (${left})`);
+  await page.close();
+}
+
 async function checkCodexFindings(browser, url, dir) {
   resetPage(dir);
   const file = path.join(dir, 'example.body.html');
@@ -1204,6 +1215,7 @@ async function main() {
     await checkOffscreen(browser, url, dir);
     await checkExpand(browser, url, dir);
     await checkReviewFixes(browser, url, dir);
+    await checkTransitions(browser, url);
     await checkCodexFindings(browser, url, dir);
     await checkLegend(browser, url, dir);
     await checkDrawing(browser, url, dir);

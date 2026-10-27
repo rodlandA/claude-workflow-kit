@@ -836,7 +836,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   const scrollBehavior = () => (reducedMotion.matches ? 'auto' : 'smooth');
   let motion = false;
   let queued = null;
-  let kinds = new Set();
+  let queuedKinds = null;
   const live = new Map();
   let updating = false;
   let running = Promise.resolve();
@@ -847,13 +847,17 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       update();
       return running;
     }
-    kinds.add(kind);
     document.documentElement.classList.add(`vt-${kind}`);
+    // A call while a transition waits for its snapshot joins that transition, kind and all.
     if (queued) {
       queued.push(update);
+      hold(queuedKinds, kind);
       return running;
     }
     queued = [update];
+    const mine = new Set();
+    queuedKinds = mine;
+    hold(mine, kind);
     const transition = document.startViewTransition(() => {
       updating = true;
       try {
@@ -865,17 +869,21 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     });
     // A newer transition skips this one; that rejects ready, which is expected, not an error.
     transition.ready.catch(() => {});
-    const mine = kinds;
-    kinds = new Set();
-    mine.forEach((k) => live.set(k, (live.get(k) ?? 0) + 1));
     running = transition.finished.catch(() => {}).then(() => mine.forEach(release));
     return running;
   }
 
-  // A kind's class stays while any transition of that kind, or one still queued, needs its names.
+  function hold(set, kind) {
+    if (!set.has(kind)) {
+      set.add(kind);
+      live.set(kind, (live.get(kind) ?? 0) + 1);
+    }
+  }
+
+  // A kind's class stays while any transition of that kind still needs its names.
   function release(kind) {
     live.set(kind, live.get(kind) - 1);
-    if (!live.get(kind) && !kinds.has(kind)) {
+    if (!live.get(kind)) {
       document.documentElement.classList.remove(`vt-${kind}`);
     }
   }
