@@ -178,8 +178,8 @@ the repo. Needs Node 20+. Nothing to adapt — the agent asks its one question i
 conversation's language.
 
 Then `npm --prefix ~/.claude/skills/explaining-visually/scripts install`, which pulls
-`playwright-core` for `check.mjs` alone; the server has no dependencies. Run
-`node ~/.claude/skills/explaining-visually/scripts/check.mjs` — it needs an installed Chrome
+`playwright-core` for the tests alone; the server has no dependencies. Run
+`npm --prefix ~/.claude/skills/explaining-visually/scripts test` — it needs an installed Chrome
 or Chromium and must end with `all passed`.
 
 Updates come from the page: the server checks GitHub hourly for a newer release, and the index
