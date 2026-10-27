@@ -180,7 +180,11 @@ function exportPage(out) {
   }
   // A standalone copy has no server behind it, so the fonts travel inside it.
   const inlineFont = (_, file) => `url("data:font/woff2;base64,${fs.readFileSync(new URL(`./fonts/${file}`, import.meta.url)).toString('base64')}")`;
-  const page = render(targetSlug, fs.readFileSync(bodyOf(targetSlug), 'utf8')).replace(/url\("\/_fonts\/([\w-]+\.woff2)"\)/g, inlineFont);
+  const body = fs.readFileSync(bodyOf(targetSlug), 'utf8');
+  // three.js travels only with a page that has a live figure; it is most of an export's size.
+  const live = /<figure[^>]*class="[^"]*\blive\b/.test(body);
+  const inlineScript = (whole, file) => (live ? `"data:text/javascript;base64,${fs.readFileSync(new URL(`./vendor/${file}`, import.meta.url)).toString('base64')}"` : whole);
+  const page = render(targetSlug, body).replace(/url\("\/_fonts\/([\w-]+\.woff2)"\)/g, inlineFont).replace(/"\/_vendor\/([\w.-]+\.js)"/g, inlineScript);
   fs.writeFileSync(out, page);
   console.log(`exported ${out}`);
 }
@@ -585,6 +589,12 @@ function serve() {
     if (font && fs.existsSync(new URL(`./fonts/${font}`, import.meta.url))) {
       res.writeHead(200, { 'content-type': 'font/woff2', 'cache-control': 'max-age=86400' });
       res.end(fs.readFileSync(new URL(`./fonts/${font}`, import.meta.url)));
+      return;
+    }
+    const vendored = pathname.match(/^\/_vendor\/([\w.-]+\.js)$/)?.[1];
+    if (vendored && fs.existsSync(new URL(`./vendor/${vendored}`, import.meta.url))) {
+      res.writeHead(200, { 'content-type': 'text/javascript', 'cache-control': 'max-age=86400' });
+      res.end(fs.readFileSync(new URL(`./vendor/${vendored}`, import.meta.url)));
       return;
     }
     if (pathname === '/code') {

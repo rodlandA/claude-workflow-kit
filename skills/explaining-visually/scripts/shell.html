@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{TITLE}}</title>
 <link rel="icon" href="data:,">
+<script type="importmap">{ "imports": { "three": "/_vendor/three.module.min.js", "three/addons/controls/OrbitControls.js": "/_vendor/OrbitControls.js" } }</script>
 <script>try { const t = localStorage.getItem("explainer:theme"); if (t) { document.documentElement.dataset.theme = t; } } catch {}</script>
 <style>
 @font-face { font-family: "Geist"; src: url("/_fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
@@ -202,6 +203,9 @@ tr.has-more > td:first-child { box-shadow: inset 3px 0 var(--accent); }
 figure { margin: 16px 0; }
 figure svg { max-width: 100%; height: auto; }
 figcaption { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
+.live-stage { position: relative; width: 100%; aspect-ratio: 16 / 9; border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow: hidden; }
+.live-stage canvas { display: block; }
+.live-stage.failed { display: grid; place-items: center; padding: 16px; font: 12px var(--mono); color: var(--removed); }
 svg text { fill: var(--fg); font: 13px var(--sans); }
 svg .muted { fill: var(--muted); }
 svg .node { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
@@ -895,6 +899,83 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     // The view transition slides the knob; its own CSS transition would move it a second time.
     $('#theme').classList.remove('ready');
     animate('theme', apply).then(() => $('#theme').classList.add('ready'));
+  }
+
+  const lives = new Map();
+  const HUES = { flame: 'flame', truffle: 'truffle', blueFantastic: 'blue-fantastic' };
+  const STEPS = [100, 200, 300, 400, 600, 700, 800, 900];
+
+  // three.js parses hex, not the oklab mixes the tokens compute to, so a canvas turns each token into hex.
+  function livePalette() {
+    const probe = document.body.appendChild(document.createElement('i'));
+    const ctx = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d', { willReadFrequently: true });
+    const hex = (token) => {
+      probe.style.color = `var(--${token})`;
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = getComputedStyle(probe).color;
+      ctx.fillRect(0, 0, 1, 1);
+      return `#${[...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+    };
+    const palette = Object.fromEntries(['fg', 'bg', 'card', 'muted', 'line', 'accent', 'new', 'changed', 'removed'].map((t) => [t, hex(t)]));
+    Object.entries(HUES).forEach(([key, hue]) => {
+      palette[key] = Object.fromEntries(STEPS.map((n) => [n, hex(`${hue}-${n}`)]));
+    });
+    probe.remove();
+    return { ...palette, dark: isDark() };
+  }
+
+  // A live figure runs its own module source, so an edit or a theme change remounts it with fresh colours.
+  async function mountLive(fig) {
+    const script = fig.querySelector(':scope > script[type=module]');
+    if (!script) {
+      return;
+    }
+    let stage = fig.querySelector(':scope > .live-stage');
+    if (!stage) {
+      stage = document.createElement('div');
+      stage.className = 'live-stage';
+      script.after(stage);
+    }
+    stage.replaceChildren();
+    stage.classList.remove('failed');
+    const entry = { cleanup: null };
+    lives.set(fig, entry);
+    const url = URL.createObjectURL(new Blob([script.textContent], { type: 'text/javascript' }));
+    try {
+      const mod = await import(url);
+      const cleanup = await mod.default(stage, { palette: livePalette(), reducedMotion: reducedMotion.matches });
+      if (lives.get(fig) === entry) {
+        entry.cleanup = cleanup;
+      } else {
+        cleanup?.();
+      }
+    } catch (err) {
+      stage.classList.add('failed');
+      stage.textContent = `Live figure failed: ${err.message}`;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  function unmountLive(fig) {
+    const entry = lives.get(fig);
+    lives.delete(fig);
+    try {
+      entry?.cleanup?.();
+    } catch {}
+  }
+
+  function syncLives(remount = false) {
+    lives.forEach((_, fig) => {
+      if (remount || !fig.isConnected) {
+        unmountLive(fig);
+      }
+    });
+    document.querySelectorAll('main figure.live').forEach((fig) => {
+      if (!lives.has(fig)) {
+        mountLive(fig);
+      }
+    });
   }
 
   // An aside.more expands the element right before it, or the [data-c] it names in data-for.
@@ -1939,6 +2020,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     document.querySelectorAll('.has-more').forEach((el) => el.classList.remove('has-more'));
     document.querySelectorAll('main .ibadge').forEach((el) => el.remove());
     collectMores();
+    syncLives();
     addLegends();
     addSectionButtons();
     buildTocLinks();
@@ -2857,7 +2939,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       return;
     }
     // A thread card or panel item rebuilt by its own click handler has left the document.
-    if (!e.target.isConnected || e.target.closest('.bar, .panel, .pop, nav, .cbtn, .h-cbtn, a, button, dialog, .sheet .ask, .qzone, .margin')) {
+    if (!e.target.isConnected || e.target.closest('.bar, .panel, .pop, nav, .cbtn, .h-cbtn, a, button, dialog, .sheet .ask, .qzone, .margin, .live-stage')) {
       return;
     }
     const el = e.target.closest('[data-ct]');
@@ -2923,6 +3005,8 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   $('#status').onclick = showStatusHelp;
   $('#theme').onclick = toggleTheme;
   systemDark.addEventListener('change', showThemeButton);
+  systemDark.addEventListener('change', () => syncLives(true));
+  new MutationObserver(() => syncLives(true)).observe(document.documentElement, { attributeFilter: ['data-theme'] });
   $('.panel .general [data-a=batch]').onclick = () => submitGeneral(false);
   $('.panel .general [data-a=send]').onclick = () => submitGeneral(true);
   $('.panel .general textarea').onkeydown = (e) => {
@@ -2978,6 +3062,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   requestAnimationFrame(() => requestAnimationFrame(() => $('#theme').classList.add('ready')));
   tagTargets();
   collectMores();
+  syncLives();
   addLegends();
   setupQuestions();
   addSectionButtons();

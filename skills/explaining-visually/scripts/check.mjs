@@ -1046,6 +1046,57 @@ async function checkDrawing(browser, url, dir) {
   check(steps.every((t) => shell.includes(t)), 'palette: every hue has its 100-900 steps for drawings');
 }
 
+const LIVE = `<figure class="live" data-c="Spin"><script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+export default (el, { palette }) => {
+  el.dataset.rev = THREE.REVISION;
+  el.dataset.orbit = typeof OrbitControls;
+  el.dataset.fg = palette.fg;
+  window.liveMounts = (window.liveMounts ?? 0) + 1;
+  return () => { window.liveCleanups = (window.liveCleanups ?? 0) + 1; };
+};
+</script><figcaption>Spins.</figcaption></figure>`;
+
+async function checkLive(browser, url, dir) {
+  resetPage(dir);
+  editBody(dir, '<h2>How a request is authenticated today</h2>', `<h2>How a request is authenticated today</h2>\n  ${LIVE}`);
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1500);
+  const stage = page.locator('#today figure.live .live-stage');
+  const fg = () => page.evaluate(() => {
+    const ctx = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d');
+    ctx.fillStyle = getComputedStyle(document.body).color;
+    ctx.fillRect(0, 0, 1, 1);
+    return `#${[...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+  });
+  check((await stage.getAttribute('data-rev')) === '168' && (await stage.getAttribute('data-orbit')) === 'function', 'live: a live figure runs its module with three.js and its addons');
+  check((await stage.getAttribute('data-fg')) === await fg(), 'live: the module gets the page palette as hex');
+  await stage.click();
+  await page.waitForTimeout(500);
+  check((await page.locator('.pop').count()) === 0 && await page.locator('.sheet').isHidden(), 'live: clicking inside a live figure does not open a comment or the sheet');
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.waitForTimeout(500);
+  const counts = () => page.evaluate(() => [window.liveMounts, window.liveCleanups ?? 0]);
+  check(JSON.stringify(await counts()) === '[2,1]' && (await stage.getAttribute('data-fg')) === await fg(), 'live: a theme change cleans up and remounts with the new palette');
+  editBody(dir, '<figcaption>Spins.</figcaption>', '<figcaption>Spins slowly.</figcaption>');
+  await page.waitForTimeout(3000);
+  check(JSON.stringify(await counts()) === '[3,2]' && (await page.locator('#today figure.live .live-stage').getAttribute('data-rev')) === '168', 'live: an edit cleans up the old figure and mounts the new one');
+  await page.close();
+  const out = path.join(dir, 'live-export.html');
+  execFileSync(process.execPath, [path.join(here, 'serve.mjs'), 'example', '--dir', dir, '--export', out]);
+  const html = fs.readFileSync(out, 'utf8');
+  const offline = await browser.newPage();
+  await offline.goto(`file://${out}`);
+  await offline.waitForTimeout(1500);
+  check(!html.includes('/_vendor/') && (await offline.locator('figure.live .live-stage').getAttribute('data-rev')) === '168', 'export: a live figure runs offline with three.js inlined');
+  await offline.close();
+  resetPage(dir);
+  execFileSync(process.execPath, [path.join(here, 'serve.mjs'), 'example', '--dir', dir, '--export', out]);
+  check(!fs.readFileSync(out, 'utf8').includes('data:text/javascript'), 'export: a page without live figures carries no three.js');
+}
+
 async function main() {
   check(cssBalanced(), 'shell.html: CSS braces balance');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'explainer-check-'));
@@ -1073,6 +1124,7 @@ async function main() {
     await checkReviewFixes(browser, url, dir);
     await checkLegend(browser, url, dir);
     await checkDrawing(browser, url, dir);
+    await checkLive(browser, url, dir);
     await checkRemote(dir);
     await checkUpdate(browser, dir);
   } finally {
