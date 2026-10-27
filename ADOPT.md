@@ -182,6 +182,12 @@ Then `npm --prefix ~/.claude/skills/explaining-visually/scripts install`, which 
 `node ~/.claude/skills/explaining-visually/scripts/check.mjs` — it needs an installed Chrome
 or Chromium and must end with `all passed`.
 
+Updates come from the page: the server checks GitHub hourly for a newer release, and the index
+page and status pill show the installed version and an Update button when one exists, usable
+only on that machine. A copied install is replaced, the old one kept in
+`~/.claude/explainers/.update/previous`; a git checkout is fast-forwarded, only on its default
+branch. `--no-update-check` or `EXPLAINER_NO_UPDATE_CHECK=1` turns the check off.
+
 Offer this line for `~/.claude/CLAUDE.md` § Working style, so plans and walkthroughs reach the
 skill without being asked for by name:
 

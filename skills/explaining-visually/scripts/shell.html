@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{TITLE}}</title>
 <link rel="icon" href="data:,">
+<script type="importmap">{ "imports": { "three": "/_vendor/three.module.min.js", "three/addons/controls/OrbitControls.js": "/_vendor/OrbitControls.js" } }</script>
 <script>try { const t = localStorage.getItem("explainer:theme"); if (t) { document.documentElement.dataset.theme = t; } } catch {}</script>
 <style>
 @font-face { font-family: "Geist"; src: url("/_fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
@@ -21,12 +22,39 @@
   --accent-soft: light-dark(#f0dccf, #3d3a3a);
   --on-accent: light-dark(#eee9df, #1b2632);
   --flame: #ffb162; --on-flame: #1b2632;
-  --new: light-dark(#e08a2e, #ffb162);
-  --new-soft: light-dark(#ffe4c4, #4a3a2a);
-  --changed: light-dark(#2c3b4d, #a9bdd4);
-  --changed-soft: light-dark(#dcdfe2, #3a5069);
-  --removed: light-dark(#a35139, #e8896d);
-  --removed-soft: light-dark(#f1d9cc, #4b2e27);
+  --truffle: #a35139; --blue-fantastic: #2c3b4d; --abyssal: #1b2632; --palladian: #eee9df;
+  --paper: var(--bg); --ink: light-dark(var(--abyssal), var(--palladian));
+  /* Steps 100-400 mix the hue into the page colour (12/30/52/76%), 600-900 into the text colour (76/52/30/12%), so 100 sits nearest the page in either theme. */
+  --flame-100: color-mix(in oklab, var(--flame) 12%, var(--paper));
+  --flame-200: color-mix(in oklab, var(--flame) 30%, var(--paper));
+  --flame-300: color-mix(in oklab, var(--flame) 52%, var(--paper));
+  --flame-400: color-mix(in oklab, var(--flame) 76%, var(--paper));
+  --flame-600: color-mix(in oklab, var(--flame) 76%, var(--ink));
+  --flame-700: color-mix(in oklab, var(--flame) 52%, var(--ink));
+  --flame-800: color-mix(in oklab, var(--flame) 30%, var(--ink));
+  --flame-900: color-mix(in oklab, var(--flame) 12%, var(--ink));
+  --truffle-100: color-mix(in oklab, var(--truffle) 12%, var(--paper));
+  --truffle-200: color-mix(in oklab, var(--truffle) 30%, var(--paper));
+  --truffle-300: color-mix(in oklab, var(--truffle) 52%, var(--paper));
+  --truffle-400: color-mix(in oklab, var(--truffle) 76%, var(--paper));
+  --truffle-600: color-mix(in oklab, var(--truffle) 76%, var(--ink));
+  --truffle-700: color-mix(in oklab, var(--truffle) 52%, var(--ink));
+  --truffle-800: color-mix(in oklab, var(--truffle) 30%, var(--ink));
+  --truffle-900: color-mix(in oklab, var(--truffle) 12%, var(--ink));
+  --blue-fantastic-100: color-mix(in oklab, var(--blue-fantastic) 12%, var(--paper));
+  --blue-fantastic-200: color-mix(in oklab, var(--blue-fantastic) 30%, var(--paper));
+  --blue-fantastic-300: color-mix(in oklab, var(--blue-fantastic) 52%, var(--paper));
+  --blue-fantastic-400: color-mix(in oklab, var(--blue-fantastic) 76%, var(--paper));
+  --blue-fantastic-600: color-mix(in oklab, var(--blue-fantastic) 76%, var(--ink));
+  --blue-fantastic-700: color-mix(in oklab, var(--blue-fantastic) 52%, var(--ink));
+  --blue-fantastic-800: color-mix(in oklab, var(--blue-fantastic) 30%, var(--ink));
+  --blue-fantastic-900: color-mix(in oklab, var(--blue-fantastic) 12%, var(--ink));
+  --new: light-dark(var(--flame-600), var(--flame));
+  --new-soft: light-dark(var(--flame-100), var(--flame-200));
+  --changed: light-dark(var(--blue-fantastic), var(--blue-fantastic-800));
+  --changed-soft: light-dark(var(--blue-fantastic-100), var(--blue-fantastic-600));
+  --removed: light-dark(var(--truffle), var(--truffle-700));
+  --removed-soft: light-dark(var(--truffle-100), var(--truffle-200));
   --note: light-dark(#2c3b4d, #ffb162);
   --note-soft: light-dark(#dcdfe2, #4a3a2a);
   --on-note: light-dark(#eee9df, #1b2632);
@@ -50,7 +78,7 @@ body { margin: 0; min-height: 100vh; background-color: var(--bg); background-ima
 textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 code { font-family: var(--mono); font-size: .86em; background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
 
-.layout { display: grid; grid-template-columns: 230px minmax(0, 920px); gap: 40px; padding: 0 24px; margin-left: max(0px, calc((100% - 1238px) * .3)); }
+.layout { --margin-w: 300px; display: grid; grid-template-columns: 230px minmax(0, 760px) var(--margin-w); gap: 40px; padding: 0 24px; margin-left: max(0px, calc((100% - 1418px) * .3)); }
 nav.toc { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow: auto; padding: 96px 0 32px; font-size: 13.5px; }
 nav.toc a { display: flex; align-items: baseline; gap: 10px; color: var(--muted); text-decoration: none; padding: 5px 10px; border-left: 2px solid var(--line); text-wrap: balance; }
 nav.toc a .n { flex: none; min-width: 2ch; font: 500 11px var(--mono); letter-spacing: .04em; }
@@ -74,7 +102,7 @@ section > h2::before { content: counter(sec, decimal-leading-zero); display: blo
 h3 { font-size: 16px; margin: 22px 0 8px; }
 p { max-width: 72ch; }
 
-.tldr { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 0; list-style: none; margin: 0 0 40px; }
+.tldr { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; padding: 0; list-style: none; margin: 0 0 40px; }
 .tldr li { background: var(--oat); border-radius: 12px; padding: 16px 18px; }
 .tldr li b { font: 500 11.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
 .tldr li b { display: block; }
@@ -98,7 +126,7 @@ p { max-width: 72ch; }
 .box.changed, .step.changed { border-color: var(--changed); background: var(--changed-soft); }
 .box.removed, .step.removed { border-color: var(--removed); background: var(--removed-soft); }
 .box.removed b { text-decoration: line-through; text-decoration-color: var(--removed); }
-.box.focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.box.focus { border-color: var(--fg); box-shadow: 0 0 0 3px color-mix(in oklab, var(--fg) 14%, transparent); }
 .arrow { display: flex; flex-direction: column; align-items: center; color: var(--muted); font-size: 11.5px; min-width: 44px; text-align: center; }
 .arrow::after { content: "\2192"; font-size: 20px; line-height: 1; }
 .flow.v .arrow::after { content: "\2193"; }
@@ -114,6 +142,7 @@ p { max-width: 72ch; }
 .legend .new::before { border-color: var(--new); background: var(--new-soft); }
 .legend .changed::before { border-color: var(--changed); background: var(--changed-soft); }
 .legend .removed::before { border-color: var(--removed); background: var(--removed-soft); }
+.legend .focus::before { border-color: var(--fg); }
 
 ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 16px 0; display: grid; gap: 10px; }
 .step { counter-increment: s; position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px 12px 52px; }
@@ -167,15 +196,30 @@ details.qa .qa-item button { float: right; font-size: 12.5px; padding: 3px 10px;
 .has-more:not(tr, svg *) { position: relative; }
 .has-more:not(tr, svg *)::before { content: "i"; position: absolute; left: -7px; top: -7px; z-index: 1; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font: italic 700 11px/16px Georgia, serif; text-align: center; }
 tr.has-more > td:first-child { box-shadow: inset 3px 0 var(--accent); }
+.ibadge circle { fill: var(--accent); }
+.ibadge text { fill: var(--on-accent); font-family: Georgia, serif; font-style: italic; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
 .sheet-owner { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 figure { margin: 16px 0; }
 figure svg { max-width: 100%; height: auto; }
 figcaption { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
+.live-stage { position: relative; width: 100%; aspect-ratio: 16 / 9; border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow: hidden; }
+.live-stage canvas { display: block; }
+.live-stage.failed { display: grid; place-items: center; padding: 16px; font: 12px var(--mono); color: var(--removed); }
 svg text { fill: var(--fg); font: 13px var(--sans); }
 svg .muted { fill: var(--muted); }
 svg .node { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
 svg .edge { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+svg .edge.arrow { marker-end: url(#ve-arrow); }
+svg .edge.dashed { stroke-dasharray: 5 4; }
+svg .lane { fill: color-mix(in oklab, var(--fg) 5%, transparent); stroke: none; }
+svg text.label { font: 11px var(--mono); fill: var(--muted); }
+svg .node.new { fill: var(--new-soft); stroke: var(--new); }
+svg .node.changed { fill: var(--changed-soft); stroke: var(--changed); }
+svg .node.removed { fill: var(--removed-soft); stroke: var(--removed); stroke-dasharray: 5 4; }
+svg .node.focus { stroke: var(--fg); stroke-width: 2; }
+svg.defs { position: absolute; width: 0; height: 0; }
+#ve-arrow path { fill: var(--muted); }
 
 /* Comment layer */
 .bar { animation: bar-in .2s ease-out; position: fixed; top: 16px; right: 16px; width: auto; max-width: calc(100vw - 32px); z-index: 50; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; align-items: center; padding: 10px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 6px 24px rgba(0,0,0,.10); }
@@ -197,9 +241,6 @@ html:is(.vt-side, .vt-side-open, .vt-side-close, .vt-snap) :is(.sheet, .panel) {
   html:is(.vt-side-open, .vt-side-close) #status { view-transition-name: bar-status; }
   html:is(.vt-side-open, .vt-side-close) #general-loader { view-transition-name: bar-loader; }
   html:is(.vt-side-open, .vt-side-close) #theme { view-transition-name: bar-theme; }
-  html:is(.vt-side-open, .vt-side-close) #changes { view-transition-name: bar-changes; }
-  html:is(.vt-side-open, .vt-side-close) #clear-changes { view-transition-name: bar-clear; }
-  html:is(.vt-side-open, .vt-side-close) #reload { view-transition-name: bar-reload; }
   html:is(.vt-side-open, .vt-side-close) #list { view-transition-name: bar-list; }
   html:is(.vt-side-open, .vt-side-close) #send { view-transition-name: bar-send; }
   html:is(.vt-side-open, .vt-side-close) #approve { view-transition-name: bar-approve; }
@@ -280,7 +321,7 @@ html.vt-snap::view-transition-old(side), html.vt-snap::view-transition-new(side)
 body.sheet-open .bar, body:has(.panel.open) .bar { top: 0; right: 0; width: var(--sheet-w); max-width: 100vw; border-right-color: transparent; border-radius: 16px 0 0 0; box-shadow: none; }
 body.sheet-open .bar .status, body:has(.panel.open) .bar .status { margin-right: 0; }
 @keyframes bar-in { from { opacity: 0; } }
-.bar button, .pop button, .panel button, .qzone button { font: inherit; font-size: 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); padding: 6px 12px; cursor: pointer; }
+.bar button, .pop button, .panel button, .qzone button, .thread .tools button { font: inherit; font-size: 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); padding: 6px 12px; cursor: pointer; }
 .bar button.send { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .bar button:disabled { opacity: .45; cursor: default; }
 .status { display: inline-flex; align-items: center; gap: 6px; font: 12px var(--mono); color: var(--muted); padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); white-space: nowrap; }
@@ -314,10 +355,72 @@ nav.toc a .loader { width: 10px; height: 10px; margin-left: 6px; vertical-align:
 @keyframes spin { to { transform: rotate(1turn); } }
 @media (prefers-reduced-motion: reduce) { .loader { animation-duration: 3s; } }
 .delta { outline: 2px solid var(--new); outline-offset: 3px; box-shadow: 0 0 0 6px var(--new-soft); }
+.linked { outline: 2px solid var(--note); outline-offset: 3px; }
+
+/* Margin threads */
+.margin { position: relative; min-width: 0; padding: 96px 0 120px; }
+.thread { position: absolute; left: 0; right: 24px; padding: 10px 12px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,.10); font-size: 13px; line-height: 1.45; transition: top .3s cubic-bezier(.2, .8, .2, 1), box-shadow .2s; cursor: pointer; }
+.thread.general { left: 24px; right: 0; }
+.thread:is(.linked, .selected) { outline: 0; box-shadow: 0 0 0 2px var(--note), 0 6px 20px rgba(0,0,0,.12); }
+.thread.folded { right: auto; padding: 4px 12px; border-radius: 99px; font: 600 12px/20px var(--sans); color: var(--accent); }
+.thread.general.folded { left: 24px; }
+:is(.thread, .thread-item) .msg + .msg { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+:is(.thread, .thread-item) .who { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; margin-bottom: 2px; }
+:is(.thread, .thread-item) .who::before { content: ''; flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--changed); }
+:is(.thread, .thread-item) .msg.claude .who { color: var(--accent); }
+:is(.thread, .thread-item) .msg.claude .who::before { background: radial-gradient(circle at 30% 30%, var(--flame), var(--accent)); }
+:is(.thread, .thread-item) .who small { margin-left: auto; font-weight: 400; color: var(--muted); }
+:is(.thread, .thread-item) .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+:is(.thread, .thread-item) .chip { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 1px 8px; border-radius: 99px; font: 500 11px var(--mono); }
+:is(.thread, .thread-item) .chip.waiting { background: var(--changed-soft); color: var(--changed); }
+:is(.thread, .thread-item) .chip.changed { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; background: var(--accent-soft); color: var(--accent); }
+:is(.thread, .thread-item) .chip .loader { width: 10px; height: 10px; }
+:is(.thread, .thread-item) .chip.draft { background: var(--note-soft); color: var(--note); }
+:is(.thread, .thread-item) .msg.draft .text { opacity: .8; }
+:is(.thread, .thread-item.focus) .tools { margin-top: 8px; }
+.thread .actions { position: absolute; top: -13px; right: 10px; display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 99px; background: var(--card); box-shadow: 0 2px 8px rgba(0,0,0,.10); opacity: 0; transition: opacity .15s; }
+.thread:hover .actions, .thread:focus-within .actions { opacity: 1; }
+.thread .actions button { border: 0; border-radius: 99px; padding: 2px 8px; font-size: 11.5px; background: none; }
+.thread .actions button:hover { background: var(--accent-soft); color: var(--accent); }
+.thread .actions :is([data-a=open-info], [data-a=open-code]) { display: none; }
+:is(.thread, .thread-item.focus) textarea { display: block; width: 100%; min-height: 30px; max-height: 160px; field-sizing: content; resize: none; font: inherit; font-size: 13px; border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: var(--bg); color: var(--fg); }
+.thread .tools .row { display: flex; justify-content: flex-end; gap: 6px; max-height: 0; margin: 0 -3px; padding: 0 3px; overflow: hidden; opacity: 0; visibility: hidden; transition: max-height .3s cubic-bezier(.2, .8, .2, 1), margin .3s cubic-bezier(.2, .8, .2, 1), padding .3s cubic-bezier(.2, .8, .2, 1), opacity .2s, visibility .3s; }
+.thread:focus-within .tools .row, .thread .tools:has(textarea:not(:placeholder-shown)) .row { max-height: 48px; margin: 3px -3px -3px; padding: 3px; opacity: 1; visibility: visible; }
+.margin.following .thread { transition: box-shadow .2s; }
+.thread-item.focus .tools .row { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+.thread-item.focus .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.thread-item.focus .actions button[data-a=fold] { display: none; }
+.panel.focused .general { display: none; }
+.panel .back { margin: 2px 0 8px; border: 0; background: none; color: var(--accent); padding: 4px 6px; }
+.panel .thread-item .t { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.panel .thread-item .t button { padding: 2px 10px; font-size: 12px; }
+.panel .thread-item.resolved { opacity: .75; }
+.offscreen-note { position: fixed; z-index: 46; left: 50%; transform: translateX(-50%); padding: 6px 14px; border: 0; border-radius: 99px; background: var(--fg); color: var(--bg); font: 600 12.5px var(--sans); box-shadow: 0 6px 18px rgba(0,0,0,.2); cursor: pointer; animation: note-in .3s cubic-bezier(.2, .8, .2, 1); }
+.offscreen-note.docked { transform: none; }
+.offscreen-note.above { top: calc(var(--bar-h) + 28px); }
+.offscreen-note.below { bottom: 24px; }
+@keyframes note-in { from { opacity: 0; transform: translateY(8px); } }
+.offscreen-note.docked { animation-name: fade-in; }
+:is(.thread, .thread-item) .info-link { display: block; margin-top: 6px; padding: 0; border: 0; background: none; color: var(--accent); font: 600 12px var(--sans); cursor: pointer; }
+.sheet .asked { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.sheet .asked h5 { margin: 0 0 6px; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.sheet .asked q { display: block; margin-top: 4px; font-size: 14px; }
+.tbadge { position: absolute; z-index: 41; height: 22px; padding: 0 8px; border: 0; border-radius: 11px; background: var(--accent); color: var(--on-accent); font: 700 11px/22px var(--sans); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
+.thread .earlier { display: block; margin-top: 6px; padding: 0; border: 0; background: none; color: var(--accent); font: 600 12px var(--sans); cursor: pointer; }
+.thread.arrive, .thread .msg.arrive { animation: thread-in .42s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes thread-in { from { opacity: 0; transform: translateX(40px); } }
+@keyframes fade-in { from { opacity: 0; } }
+.thread.leaving { pointer-events: none; animation: thread-out .3s cubic-bezier(.4, 0, 1, 1) forwards; }
+@keyframes thread-out { to { opacity: 0; transform: translateX(60px); } }
+@keyframes fade-out { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .thread { transition: none; }
+  .thread.leaving { animation-name: fade-out; }
+  .thread .tools .row { transition: opacity .2s, visibility .2s; }
+  .thread.arrive, .thread .msg.arrive, .offscreen-note { animation-name: fade-in; }
+}
 svg .delta > :is(rect, circle, ellipse, path, polygon) { stroke: var(--new); stroke-width: 2.5; }
-.bar button.changes { border-color: var(--new); color: var(--new); }
 .bar button.reload { border-color: var(--accent); color: var(--accent); }
-.bar button.pulse { border-color: var(--note); color: var(--note); }
 .pop { position: absolute; z-index: 60; width: min(380px, calc(100vw - 32px)); background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
 .pop.general { position: fixed; left: 50% !important; top: 14vh !important; transform: translateX(-50%); width: min(680px, calc(100vw - 32px)); padding: 18px; }
 .pop .target { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
@@ -355,10 +458,6 @@ svg .delta > :is(rect, circle, ellipse, path, polygon) { stroke: var(--new); str
 .sheet .ask button { font: inherit; font-size: 13px; border-radius: 8px; padding: 6px 14px; cursor: pointer; background: var(--flame); color: var(--on-flame); border: 1px solid var(--flame); font-weight: 600; }
 .sheet .ask button:disabled { opacity: .45; cursor: default; }
 @media (min-width: 840px) { body.sheet-open, body:has(.panel.open) { padding-right: var(--sheet-w); } }
-@media (min-width: 840px) and (max-width: 1099px) {
-  body.sheet-open .layout, body:has(.panel.open) .layout { grid-template-columns: 0 minmax(0, 920px); gap: 0; }
-  body.sheet-open nav.toc, body:has(.panel.open) nav.toc { opacity: 0; visibility: hidden; }
-}
 .sheet .handle, .panel .handle { display: none; justify-content: center; align-items: center; height: 48px; flex: none; cursor: grab; touch-action: none; }
 .sheet .handle::before, .panel .handle::before { content: ''; width: 32px; height: 4px; border-radius: 2px; background: var(--muted); opacity: .5; }
 .scrim { display: none; }
@@ -372,7 +471,7 @@ svg .delta > :is(rect, circle, ellipse, path, polygon) { stroke: var(--new); str
 .codes pre i { display: inline-block; width: 4ch; margin-right: 10px; text-align: right; color: var(--muted); font-style: normal; user-select: none; }
 .codes .miss { font-size: 12.5px; color: var(--muted); }
 .pop .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
-.pop button.primary, .panel button.primary, .qzone button.primary { background: var(--flame); color: var(--on-flame); border-color: var(--flame); font-weight: 600; }
+.pop button.primary, .panel button.primary, .qzone button.primary, .thread button.primary { background: var(--flame); color: var(--on-flame); border-color: var(--flame); font-weight: 600; }
 .panel .general { padding: 4px 16px 14px; border-bottom: 1px solid var(--line); }
 .panel .general textarea { width: 100%; min-height: 88px; font: inherit; font-size: 14px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--bg); color: var(--fg); resize: vertical; }
 .panel .general .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
@@ -428,15 +527,23 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   :is(.sheet, .panel)[data-snap="3"] { height: calc(100dvh - 56px); }
 }
 
-@media (max-width: 860px) {
+/* The layout answers to the width left beside an open side sheet, so the margin goes only when it has no room */
+.page { container-type: inline-size; }
+@container (max-width: 1250px) {
   nav.toc .keys { display: none; }
-  html { scroll-padding-top: calc(var(--bar-h) + 16px); }
-  .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; }
-  nav.toc { position: static; max-height: none; display: flex; gap: 8px; margin: 0 -16px; padding: calc(var(--bar-h) + 16px) 16px 2px; overflow-x: auto; scrollbar-width: none; }
+  .layout { --margin-w: 260px; grid-template-columns: minmax(0, 1fr) var(--margin-w); column-gap: 32px; row-gap: 0; padding: 0 16px; margin-left: 0; }
+  nav.toc { grid-column: 1 / -1; position: static; max-height: none; display: flex; gap: 8px; margin: 0 -16px; padding: calc(var(--bar-h) + 16px) 16px 2px; overflow-x: auto; scrollbar-width: none; }
   nav.toc a, nav.toc a.sub { flex: none; border: 1px solid var(--line); border-radius: 99px; padding: 6px 12px; margin: 0; white-space: nowrap; background: var(--card); font-size: 13px; }
   nav.toc a.sub { display: none; }
   nav.toc a.active { border-color: var(--accent); }
   main { padding-top: 24px; }
+}
+@container (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; gap: 0; }
+  .margin { display: none; }
+}
+@media (max-width: 860px) {
+  html { scroll-padding-top: calc(var(--bar-h) + 16px); }
   .flow { flex-direction: column; align-items: stretch; }
   .arrow::after { content: "\2193"; }
   .flow.v > .col, .flow.v > .col > .flow > .box { width: 100%; }
@@ -446,17 +553,15 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   .theme .knob, .theme svg { transition: none !important; }
   html { scroll-behavior: auto; }
 }
-@media print { .bar, .panel, .sheet, .cbtn, .h-cbtn, nav.toc { display: none; } .layout { display: block; } }
+@media print { .bar, .panel, .sheet, .cbtn, .h-cbtn, nav.toc, .margin { display: none; } .layout { display: block; } }
 </style>
 </head>
 <body>
+<svg class="defs" aria-hidden="true"><defs><marker id="ve-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker></defs></svg>
 <div class="bar">
   <span class="status" id="status"><span>Connecting…</span></span>
   <button id="theme" class="theme" role="switch" aria-checked="false"><span class="knob"><svg class="sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="moon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></span></button>
   <span class="loader" id="general-loader" title="The agent is working on a general comment" hidden></span>
-  <button id="changes" class="changes" title="Jump to the next change" hidden></button>
-  <button id="clear-changes" class="changes" title="Mark changes as seen" hidden>&#x2715;</button>
-  <button id="reload" class="reload" hidden>New version · reload</button>
   <button id="update" class="reload" hidden></button>
   <div class="actions">
     <button id="list">Comments</button>
@@ -465,12 +570,13 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     <span id="approved" class="approved" hidden></span>
   </div>
 </div>
-<div class="layout">
+<div class="page"><div class="layout">
   <nav class="toc" aria-label="Contents"></nav>
   <main>
 {{BODY}}
   </main>
-</div>
+  <div class="margin" aria-label="Comment threads"></div>
+</div></div>
 <aside class="panel">
   <div class="handle" title="Drag to resize or close"></div>
   <div class="inner">
@@ -499,12 +605,17 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   <div class="row"><button data-a="cancel">Cancel</button><button data-a="ok" class="primary">Approve anyway</button></div>
 </dialog>
 <button class="cbtn" title="Comment"></button>
+<button class="offscreen-note above" hidden></button>
+<button class="offscreen-note below" hidden></button>
 <script>
 (() => {
+  // Captured before any script touches main: later versions of the body are compared against it.
+  let pristine = document.createElement('template');
+  pristine.innerHTML = document.querySelector('main').innerHTML;
+  let liveOf = [...document.querySelector('main').children];
   const DOC = '{{DOC}}';
   const KEY = `explainer:${DOC}`;
   const SCROLL_KEY = `${KEY}:scroll`;
-  const BASE_KEY = `${KEY}:base`;
   const SHEET_KEY = `${KEY}:sheet`;
   const compact = matchMedia('(max-width: 839px)');
   const RENDERED = '{{VERSION}}';
@@ -517,31 +628,41 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   let drafts = [];
   let sent = [];
-  let version = RENDERED;
-  let firstPoll = true;
-  let pendingReload = false;
-  let seenReplies = null;
+  let bodyVersion = RENDERED;
+  let bodyBusy = false;
   let installing = false;
   let skillVersion = null;
   const SEEN_KEY = `${KEY}:seen`;
   const BASE_TITLE = document.title;
   const DOT = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%233d7a55'/%3E%3C/svg%3E";
 
-  function showUnseen(replies) {
-    let seen = replies;
-    try {
-      seen = Number(sessionStorage.getItem(SEEN_KEY) ?? replies);
-      if (!document.hidden) {
-        seen = replies;
-      }
-      sessionStorage.setItem(SEEN_KEY, String(seen));
-    } catch {}
-    const unseen = Math.max(0, replies - seen);
-    document.title = unseen ? `(${unseen}) ${BASE_TITLE}` : BASE_TITLE;
-    $('link[rel=icon]').href = unseen ? DOT : 'data:,';
+  // Null until the first state arrives; on a first visit every reply already there counts as seen.
+  let seenIds = null;
+  try {
+    const saved = localStorage.getItem(SEEN_KEY);
+    seenIds = saved ? new Set(JSON.parse(saved)) : null;
+  } catch {}
+  const saveSeen = () => { try { localStorage.setItem(SEEN_KEY, JSON.stringify([...seenIds])); } catch {} };
+  const unseen = () => (seenIds ? sent.filter((c) => c.reply && !seenIds.has(c.id)) : []);
+
+  function loadSeen(list) {
+    if (!seenIds) {
+      seenIds = new Set(list.filter((c) => c.reply).map((c) => c.id));
+      saveSeen();
+    }
   }
-  let deltas = [];
-  let deltaIndex = 0;
+
+  function markSeen(ids) {
+    ids.forEach((id) => seenIds?.add(id));
+    saveSeen();
+    render();
+  }
+
+  function showTitle() {
+    const n = unseen().length;
+    document.title = n ? `(${n}) ${BASE_TITLE}` : BASE_TITLE;
+    $('link[rel=icon]').href = n ? DOT : 'data:,';
+  }
   let hot = null;
   let hideTimer = null;
   let sheetOwner = null;
@@ -549,7 +670,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   let sheetRefs = null;
   let sheetWaiting = null;
   const mores = new Map();
-  const questions = [...document.querySelectorAll('main .q[id]')];
+  let questions = [...document.querySelectorAll('main .q[id]')];
   const skipped = new Set();
   let reopened = null;
   let shownQuestion;
@@ -590,7 +711,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   }
 
   function addSectionButtons() {
-    document.querySelectorAll('main section > h2[data-ct]').forEach((h) => {
+    document.querySelectorAll('main section > h2[data-ct]:not(:has(.h-cbtn))').forEach((h) => {
       const b = document.createElement('button');
       b.className = 'h-cbtn';
       b.title = 'Comment on this section';
@@ -611,7 +732,27 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   }
 
   function buildToc() {
+    buildTocLinks();
+    $('nav.toc').addEventListener('click', (e) => {
+      const a = e.target.closest('a');
+      if (a) {
+        pinTo(document.getElementById(a.hash.slice(1)));
+      }
+    });
+    addEventListener('scroll', spyToc, { passive: true });
+    addEventListener('resize', spyToc);
+    addEventListener('wheel', unpin, { passive: true });
+    addEventListener('touchmove', unpin, { passive: true });
+    addEventListener('keydown', (e) => {
+      if (SCROLL_KEYS.includes(e.key) && !e.target.closest?.('textarea, input, [contenteditable]')) {
+        unpin();
+      }
+    });
+  }
+
+  function buildTocLinks() {
     const toc = $('nav.toc');
+    toc.textContent = '';
     if ($('.qzone')) {
       $('.qzone').id = 'questions';
       toc.appendChild(tocLink('#questions', 'Questions', '?', 'qlink')).insertAdjacentHTML('beforeend', '<span class="count"></span>');
@@ -628,21 +769,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       toc.appendChild(tocLink(`#${anchor.id}`, h.textContent.trim(), isH2 ? String(n).padStart(2, '0') : '', isH2 ? '' : 'sub'));
     });
     toc.insertAdjacentHTML('beforeend', '<div class="keys"><kbd>j</kbd> <kbd>k</kbd> section · <kbd>c</kbd> comment</div>');
-    toc.addEventListener('click', (e) => {
-      const a = e.target.closest('a');
-      if (a) {
-        pinTo(document.getElementById(a.hash.slice(1)));
-      }
-    });
-    addEventListener('scroll', spyToc, { passive: true });
-    addEventListener('resize', spyToc);
-    addEventListener('wheel', unpin, { passive: true });
-    addEventListener('touchmove', unpin, { passive: true });
-    addEventListener('keydown', (e) => {
-      if (SCROLL_KEYS.includes(e.key) && !e.target.closest?.('textarea, input, [contenteditable]')) {
-        unpin();
-      }
-    });
     spyToc();
   }
 
@@ -710,7 +836,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   const scrollBehavior = () => (reducedMotion.matches ? 'auto' : 'smooth');
   let motion = false;
   let queued = null;
-  let kinds = new Set();
+  let queuedKinds = null;
   const live = new Map();
   let updating = false;
   let running = Promise.resolve();
@@ -721,13 +847,17 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       update();
       return running;
     }
-    kinds.add(kind);
     document.documentElement.classList.add(`vt-${kind}`);
+    // A call while a transition waits for its snapshot joins that transition, kind and all.
     if (queued) {
       queued.push(update);
+      hold(queuedKinds, kind);
       return running;
     }
     queued = [update];
+    const mine = new Set();
+    queuedKinds = mine;
+    hold(mine, kind);
     const transition = document.startViewTransition(() => {
       updating = true;
       try {
@@ -739,17 +869,21 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     });
     // A newer transition skips this one; that rejects ready, which is expected, not an error.
     transition.ready.catch(() => {});
-    const mine = kinds;
-    kinds = new Set();
-    mine.forEach((k) => live.set(k, (live.get(k) ?? 0) + 1));
     running = transition.finished.catch(() => {}).then(() => mine.forEach(release));
     return running;
   }
 
-  // A kind's class stays while any transition of that kind, or one still queued, needs its names.
+  function hold(set, kind) {
+    if (!set.has(kind)) {
+      set.add(kind);
+      live.set(kind, (live.get(kind) ?? 0) + 1);
+    }
+  }
+
+  // A kind's class stays while any transition of that kind still needs its names.
   function release(kind) {
     live.set(kind, live.get(kind) - 1);
-    if (!live.get(kind) && !kinds.has(kind)) {
+    if (!live.get(kind)) {
       document.documentElement.classList.remove(`vt-${kind}`);
     }
   }
@@ -775,6 +909,83 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     animate('theme', apply).then(() => $('#theme').classList.add('ready'));
   }
 
+  const lives = new Map();
+  const HUES = { flame: 'flame', truffle: 'truffle', blueFantastic: 'blue-fantastic' };
+  const STEPS = [100, 200, 300, 400, 600, 700, 800, 900];
+
+  // three.js parses hex, not the oklab mixes the tokens compute to, so a canvas turns each token into hex.
+  function livePalette() {
+    const probe = document.body.appendChild(document.createElement('i'));
+    const ctx = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d', { willReadFrequently: true });
+    const hex = (token) => {
+      probe.style.color = `var(--${token})`;
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = getComputedStyle(probe).color;
+      ctx.fillRect(0, 0, 1, 1);
+      return `#${[...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+    };
+    const palette = Object.fromEntries(['fg', 'bg', 'card', 'muted', 'line', 'accent', 'new', 'changed', 'removed'].map((t) => [t, hex(t)]));
+    Object.entries(HUES).forEach(([key, hue]) => {
+      palette[key] = Object.fromEntries(STEPS.map((n) => [n, hex(`${hue}-${n}`)]));
+    });
+    probe.remove();
+    return { ...palette, dark: isDark() };
+  }
+
+  // A live figure runs its own module source, so an edit or a theme change remounts it with fresh colours.
+  async function mountLive(fig) {
+    const script = fig.querySelector(':scope > script[type=module]');
+    if (!script) {
+      return;
+    }
+    let stage = fig.querySelector(':scope > .live-stage');
+    if (!stage) {
+      stage = document.createElement('div');
+      stage.className = 'live-stage';
+      script.after(stage);
+    }
+    stage.replaceChildren();
+    stage.classList.remove('failed');
+    const entry = { cleanup: null };
+    lives.set(fig, entry);
+    const url = URL.createObjectURL(new Blob([script.textContent], { type: 'text/javascript' }));
+    try {
+      const mod = await import(url);
+      const cleanup = await mod.default(stage, { palette: livePalette(), reducedMotion: reducedMotion.matches });
+      if (lives.get(fig) === entry) {
+        entry.cleanup = cleanup;
+      } else {
+        cleanup?.();
+      }
+    } catch (err) {
+      stage.classList.add('failed');
+      stage.textContent = `Live figure failed: ${err.message}`;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  function unmountLive(fig) {
+    const entry = lives.get(fig);
+    lives.delete(fig);
+    try {
+      entry?.cleanup?.();
+    } catch {}
+  }
+
+  function syncLives(remount = false) {
+    lives.forEach((_, fig) => {
+      if (remount || !fig.isConnected) {
+        unmountLive(fig);
+      }
+    });
+    document.querySelectorAll('main figure.live').forEach((fig) => {
+      if (!lives.has(fig)) {
+        mountLive(fig);
+      }
+    });
+  }
+
   // An aside.more expands the element right before it, or the [data-c] it names in data-for.
   function collectMores() {
     document.querySelectorAll('main aside.more').forEach((aside) => {
@@ -784,6 +995,51 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
         mores.set(owner, aside);
         owner.classList.add('has-more');
       }
+      if (owner instanceof SVGGraphicsElement && owner.ownerSVGElement) {
+        drawInfoBadge(owner);
+      }
+    });
+  }
+
+  // CSS cannot put the i badge on an SVG part, so it is drawn into the part at its top-left corner.
+  function drawInfoBadge(owner) {
+    const svg = owner.ownerSVGElement;
+    const box = owner.getBBox();
+    const shown = svg.getBoundingClientRect().width;
+    const scale = svg.viewBox.baseVal?.width && shown ? svg.viewBox.baseVal.width / shown : 1;
+    const badge = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    badge.setAttribute('class', 'ibadge');
+    badge.innerHTML = `<circle cx="${box.x}" cy="${box.y}" r="${8 * scale}"/><text x="${box.x}" y="${box.y}" font-size="${11 * scale}">i</text>`;
+    owner.append(badge);
+  }
+
+  const STATES = ['new', 'changed', 'removed', 'focus'];
+  const COLOURED = STATES.map((s) => `:is(.box, .step, .node).${s}`).join(', ');
+  const GROUPS = '.flow, .cols, ol.steps, figure';
+
+  function legendHolder(el) {
+    const stop = el.closest('aside.more');
+    let holder = el;
+    for (let up = el.parentElement.closest(GROUPS); up && (!stop || stop.contains(up)); up = up.parentElement.closest(GROUPS)) {
+      holder = up;
+    }
+    return holder;
+  }
+
+  function addLegends() {
+    new Set([...document.querySelectorAll(`main ${COLOURED}`)].map(legendHolder)).forEach((holder) => {
+      if (holder.previousElementSibling?.matches('.legend')) {
+        return;
+      }
+      const legend = document.createElement('div');
+      legend.className = 'legend';
+      STATES.filter((s) => holder.matches(`.${s}`) || holder.querySelector(`:is(.box, .step, .node).${s}`)).forEach((s) => {
+        const key = document.createElement('span');
+        key.className = s;
+        key.textContent = s;
+        legend.append(key);
+      });
+      holder.before(legend);
     });
   }
 
@@ -885,8 +1141,16 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     return item;
   }
 
+  let panelFocus = null;
+
   function renderPanel() {
     const list = $('.panel .list');
+    const focus = panelFocus && threadsOf().find((t) => t.key === panelFocus && (t.items.length || t.drafts.length));
+    $('.panel').classList.toggle('focused', Boolean(focus));
+    if (focus) {
+      renderFocusedPanel(list, focus);
+      return;
+    }
     list.innerHTML = '<h5>Unsent</h5>';
     if (!drafts.length) {
       list.insertAdjacentHTML('beforeend', '<div class="empty">Nothing waiting. "Add to batch" collects comments here.</div>');
@@ -898,15 +1162,63 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       item.onclick = () => editDraft(i);
       list.appendChild(item);
     });
-    list.insertAdjacentHTML('beforeend', '<h5>Sent</h5>');
-    if (!sent.length) {
-      list.insertAdjacentHTML('beforeend', '<div class="empty">Nothing sent yet.</div>');
+    const threads = threadsOf().filter((t) => t.items.length).reverse();
+    panelSection(list, 'Open', threads.filter((t) => !t.resolved), 'No open threads.');
+    const approvals = sent.filter((c) => c.kind === 'approve' && c.reply);
+    if (approvals.length) {
+      list.insertAdjacentHTML('beforeend', '<h5>Approval</h5>');
+      approvals.forEach((c) => list.appendChild(panelItem(c, 'answered')));
     }
-    [...sent].reverse().forEach((c) => {
-      const item = panelItem(c, c.reply ? 'answered' : 'waiting');
-      item.querySelector('.chip').textContent = c.reply ? 'answered' : 'waiting';
-      list.appendChild(item);
-    });
+    panelSection(list, 'Resolved', threads.filter((t) => t.resolved), 'Nothing resolved yet.');
+  }
+
+  function renderFocusedPanel(list, thread) {
+    const old = list.querySelector('.thread-item.focus');
+    const back = document.createElement('button');
+    back.className = 'back';
+    back.textContent = '← All comments';
+    back.onclick = (e) => {
+      e.stopPropagation();
+      panelFocus = null;
+      renderPanel();
+    };
+    const item = threadItem(thread);
+    item.classList.add('focus');
+    thread.drafts.forEach((c) => item.append(draftEl(c)));
+    item.append(threadTools(thread));
+    item.onclick = (e) => onPanelThreadClick(e, thread.key, item);
+    if (old) {
+      keepTyping(old, item);
+    }
+    list.replaceChildren(back, item);
+  }
+
+  function panelSection(list, title, threads, empty) {
+    list.insertAdjacentHTML('beforeend', `<h5>${title}</h5>`);
+    if (!threads.length) {
+      list.insertAdjacentHTML('beforeend', `<div class="empty">${empty}</div>`);
+    }
+    threads.forEach((t) => list.appendChild(threadItem(t)));
+  }
+
+  function threadItem(thread) {
+    const item = document.createElement('div');
+    item.className = thread.resolved ? 'item thread-item resolved' : 'item thread-item';
+    item.dataset.key = thread.key;
+    item.innerHTML = '<div class="t"></div>';
+    item.querySelector('.t').textContent = targetName({ target: thread.key });
+    messagesOf(thread).forEach((m) => item.append(messageEl(m)));
+    if (thread.resolved) {
+      const reopen = document.createElement('button');
+      reopen.textContent = 'Reopen';
+      reopen.onclick = (e) => {
+        e.stopPropagation();
+        resolveThread(thread.key, false);
+      };
+      item.querySelector('.t').append(reopen);
+    }
+    item.onclick = () => flashChange(thread);
+    return item;
   }
 
   const answerOf = (q) => sent.filter((c) => c.kind === 'answer' && c.qid === q.id).pop();
@@ -1032,8 +1344,9 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     }
     $('.draft-note').hidden = !open;
     const q = nextQuestion();
-    if (q !== shownQuestion) {
-      shownQuestion = q;
+    const switched = q?.id !== shownQuestion?.id;
+    shownQuestion = q;
+    if (switched) {
       animate('question', () => {
         zone.querySelector('.qcard')?.remove();
         if (q) {
@@ -1072,6 +1385,10 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   function render() {
     markTargets();
+    markChanged();
+    renderMargin();
+    renderOffscreen();
+    showTitle();
     renderQuestions();
     const waiting = sent.filter((c) => !c.reply).length;
     const counts = [drafts.length && `${drafts.length} unsent`, waiting && `${waiting} waiting`].filter(Boolean);
@@ -1097,7 +1414,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     if (pops.length) {
       animate('pop', () => pops.forEach((p) => p.remove()));
     }
-    reloadIfPending();
   }
 
   function refsIn(el) {
@@ -1152,8 +1468,26 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   const isWaiting = (owner) => sent.some((c) => !c.reply && c.kind === 'expand' && c.target === owner.dataset.ct);
 
+  const homes = new Map();
+
+  // An aside goes back to the exact place it came from, so its section still matches the source.
   function parkMore() {
-    $('.sheet-body').querySelectorAll('aside.more').forEach((a) => $('main').appendChild(a));
+    $('.sheet-body').querySelectorAll('aside.more').forEach((a) => {
+      const home = homes.get(a);
+      homes.delete(a);
+      if (home?.isConnected) {
+        home.replaceWith(a);
+      } else {
+        $('main').appendChild(a);
+      }
+    });
+  }
+
+  function lendMore(aside, body) {
+    const home = document.createComment('aside.more');
+    aside.replaceWith(home);
+    homes.set(aside, home);
+    body.appendChild(aside);
   }
 
   function askForm(hasMore) {
@@ -1188,12 +1522,33 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       return;
     }
     sheetWaiting = isWaiting(sheetOwner);
+    const asked = askedList(sheetOwner);
+    if (asked) {
+      body.appendChild(asked);
+    }
     const aside = mores.get(sheetOwner);
     if (aside) {
       aside.querySelectorAll('code').forEach((c) => c.classList.toggle('ref', served && Boolean(c.textContent.match(REF))));
-      body.appendChild(aside);
+      lendMore(aside, body);
     }
     body.appendChild(askForm(Boolean(aside)));
+  }
+
+  // The questions an expansion answers, so it still makes sense when the reader comes back to it.
+  function askedList(owner) {
+    const questions = sent.filter((c) => c.kind === 'expand' && c.target === owner.dataset.ct);
+    if (!questions.length) {
+      return null;
+    }
+    const list = document.createElement('div');
+    list.className = 'asked';
+    list.innerHTML = '<h5>You asked</h5>';
+    questions.forEach((c) => {
+      const q = document.createElement('q');
+      q.textContent = messageText(c);
+      list.appendChild(q);
+    });
+    return list;
   }
 
   function showRefInSheet(code) {
@@ -1205,8 +1560,11 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     renderSheet();
   }
 
-  function openSheet(owner, tab) {
-    animate(sideIsOpen() ? 'side' : 'side-open', () => showSheet(owner, tab));
+  function openSheet(owner, tab, then) {
+    animate(sideIsOpen() ? 'side' : 'side-open', () => {
+      showSheet(owner, tab);
+      then?.();
+    });
   }
 
   function showSheet(owner, tab) {
@@ -1328,7 +1686,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       sheetOwner = null;
       try { sessionStorage.removeItem(SHEET_KEY); } catch {}
     });
-    reloadIfPending();
   }
 
   function restoreSheet() {
@@ -1365,6 +1722,9 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   function openPop({ anchor, target, quote, text, general, tools, onSend, onBatch }) {
     const pop = document.createElement('div');
     pop.className = general ? 'pop general' : 'pop';
+    if (!general && anchor?.dataset.ct) {
+      pop.dataset.ct = anchor.dataset.ct;
+    }
     pop.innerHTML = '<div class="target"></div><q></q><div class="tools"></div><textarea></textarea><div class="row"><button data-a="cancel">Cancel</button><button data-a="batch">Add to batch</button><button data-a="send" class="primary">Send now ⌘↵</button></div>';
     pop.querySelector('.target').textContent = general ? 'General comment' : target;
     pop.querySelector('q').textContent = quote || '';
@@ -1419,19 +1779,30 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     return 'code';
   }
 
+  const followsSheet = (el) => !compact.matches && !el.closest('.sheet');
+
   function commentOn(el) {
     const sel = getSelection();
     const quote = sel && !sel.isCollapsed && el.contains(sel.anchorNode) ? sel.toString().trim().slice(0, 300) : '';
-    const sheetFollows = !compact.matches && !el.closest('.sheet');
-    if (sheetFollows && sheetOwner !== el) {
+    const sheetFollows = followsSheet(el);
+    const lent = sheetFollows && sheetOwner !== el;
+    if (lent) {
       openSheet(el, defaultTab(el));
     }
+    // The page may have swapped el since the popover opened; the live element has the current line.
+    const live = () => findTarget(el.dataset.ct) ?? el;
+    // A sheet that only opened alongside the comment makes way, so its thread shows in the margin.
+    const makeWay = () => {
+      if (lent && sheetOwner?.dataset.ct === el.dataset.ct && marginHidden()) {
+        closeSheet();
+      }
+    };
     openPop({
       anchor: el,
       target: el.dataset.ct,
       quote,
-      onSend: (text) => post([commentFrom(el, text, quote)]),
-      onBatch: (text) => { drafts.push(commentFrom(el, text, quote)); persist(); render(); },
+      onSend: (text) => { makeWay(); return post([commentFrom(live(), text, quote)]); },
+      onBatch: (text) => { makeWay(); drafts.push(commentFrom(live(), text, quote)); persist(); render(); },
       tools: !sheetFollows && !el.closest('aside.more'),
     });
   }
@@ -1460,7 +1831,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     if (open) {
       kind = sideIsOpen() ? 'side' : 'side-open';
     }
-    animate(kind, () => {
+    return animate(kind, () => {
       if (open && sheetOwner) {
         closeSheet();
       }
@@ -1469,7 +1840,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
         setSnap($('.panel'), START_SNAP);
       }
       $('#list').classList.toggle('on', open);
-      $('#list').classList.remove('pulse');
       if (open && !compact.matches) {
         $('.panel .general textarea').focus();
       }
@@ -1543,7 +1913,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     ].filter(Boolean);
   }
 
-  const approvalOf = () => sent.find((c) => c.kind === 'approve' && c.version === version);
+  const approvalOf = () => sent.find((c) => c.kind === 'approve' && c.version === bodyVersion);
 
   function renderApproval() {
     const approved = approvalOf();
@@ -1556,7 +1926,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   }
 
   async function approve() {
-    await post([{ ...commentFrom(null, '', ''), kind: 'approve', version, sentAt: new Date().toISOString() }]);
+    await post([{ ...commentFrom(null, '', ''), kind: 'approve', version: bodyVersion, sentAt: new Date().toISOString() }]);
   }
 
   function requestApproval() {
@@ -1598,42 +1968,843 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     } catch {}
   }
 
-  function markDeltas(lines) {
+  async function fetchMain() {
+    const html = await (await fetch('./', { cache: 'no-store' })).text();
+    return new DOMParser().parseFromString(html, 'text/html').querySelector('main');
+  }
+
+  const sourceOf = (el) => el.outerHTML.replace(/ data-line="\d+"/g, '');
+
+  function lineMap(before, after) {
+    const news = [after, ...after.querySelectorAll('[data-line]')];
+    return new Map([before, ...before.querySelectorAll('[data-line]')].map((el, i) => [el.dataset.line, news[i]?.dataset.line]));
+  }
+
+  function renumber(live, map) {
+    [live, ...live.querySelectorAll('[data-line]')].forEach((el) => {
+      el.dataset.line = map.get(el.dataset.line) ?? el.dataset.line;
+    });
+  }
+
+  // Unchanged top-level children keep their live nodes, so whatever the reader is doing in them survives.
+  function applyBody(next) {
+    const before = [...pristine.content.children];
+    const unused = new Map();
+    before.forEach((el, i) => unused.set(sourceOf(el), [...(unused.get(sourceOf(el)) ?? []), i]));
+    const sequence = [...next.children].map((el) => {
+      const i = unused.get(sourceOf(el))?.shift();
+      if (i === undefined) {
+        return document.importNode(el, true);
+      }
+      const kept = liveOf[i];
+      renumber(kept, lineMap(before[i], el));
+      liveOf[i] = null;
+      return kept;
+    });
+    parkMore();
+    liveOf.filter(Boolean).forEach((el) => el.remove());
+    $('main').append(...sequence);
+    placeScriptNodes();
+    pristine = document.createElement('template');
+    pristine.innerHTML = next.innerHTML;
+    liveOf = sequence;
+  }
+
+  function placeScriptNodes() {
+    const zone = $('.qzone');
+    if (zone && $('main').firstElementChild !== zone) {
+      $('main').prepend(zone);
+    }
+    const note = $('.draft-note');
+    const before = $('main > .lede') ?? $('main > h1') ?? zone;
+    if (note && before && before.nextElementSibling !== note) {
+      before.after(note);
+    }
+  }
+
+  function afterBodyChange() {
+    tagTargets();
+    mores.clear();
+    document.querySelectorAll('.has-more').forEach((el) => el.classList.remove('has-more'));
+    document.querySelectorAll('main .ibadge').forEach((el) => el.remove());
+    collectMores();
+    syncLives();
+    addLegends();
+    addSectionButtons();
+    buildTocLinks();
+    questions = [...document.querySelectorAll('main .q[id]')];
+    if (questions.length && !$('.qzone')) {
+      setupQuestions();
+    }
+    reopened = reopened && questions.find((q) => q.id === reopened.id);
+    workingSig = null;
+    hot = null;
+    cbtn.classList.remove('show');
+    reanchorPop();
+    reattachSheet();
+    render();
+  }
+
+  function reanchorPop() {
+    const pop = openPopEl();
+    const anchor = pop?.dataset.ct && findTarget(pop.dataset.ct);
+    if (anchor) {
+      placePop(pop, anchor);
+    }
+  }
+
+  function reattachSheet() {
+    if (!sheetOwner) {
+      return;
+    }
+    const owner = findTarget(sheetOwner.dataset.ct);
+    if (!owner) {
+      closeSheet();
+      return;
+    }
+    const shown = $('.sheet-body aside.more');
+    if (owner === sheetOwner && (shown ?? null) === (mores.get(owner) ?? null)) {
+      return;
+    }
+    sheetOwner.classList.remove('sheet-owner');
+    sheetOwner = owner;
+    owner.classList.add('sheet-owner');
+    const asked = $('.sheet .ask textarea')?.value ?? '';
+    renderSheet();
+    const ta = $('.sheet .ask textarea');
+    if (ta) {
+      ta.value = asked;
+    }
+  }
+
+  // Moving a node blurs whatever the reader was typing in; the caret goes back where it was.
+  function keepingFocus(change) {
+    const active = document.activeElement;
+    const typing = active?.matches?.('textarea, input');
+    const [start, end] = typing ? [active.selectionStart, active.selectionEnd] : [0, 0];
+    const sheetAsk = active?.closest?.('.sheet .ask');
+    change();
+    const target = sheetAsk && !active.isConnected ? $('.sheet .ask textarea') : active;
+    if (typing && target?.isConnected && document.activeElement !== target) {
+      target.focus({ preventScroll: true });
+      target.setSelectionRange(start, end);
+    }
+  }
+
+  // Keeps the element at the top of the viewport where it was, however much changed above it.
+  function keepingScroll(change) {
+    const anchor = [...document.querySelectorAll('main [data-ct]')].find((el) => el.getBoundingClientRect().bottom > 0);
+    const ct = anchor?.dataset.ct;
+    const top = anchor?.getBoundingClientRect().top;
+    change();
+    const again = ct && findTarget(ct);
+    if (again) {
+      scrollBy(0, again.getBoundingClientRect().top - top);
+    }
+  }
+
+  async function updateBody(v) {
+    if (bodyBusy) {
+      return;
+    }
+    bodyBusy = true;
+    try {
+      const next = await fetchMain();
+      keepingFocus(() => keepingScroll(() => {
+        applyBody(next);
+        afterBodyChange();
+      }));
+      bodyVersion = v;
+    } finally {
+      bodyBusy = false;
+    }
+  }
+
+  function changedElements(lines) {
     const wanted = new Set(lines.map(String));
     const changed = [...document.querySelectorAll('main [data-line], .sheet-body [data-line]')].filter((el) => wanted.has(el.dataset.line) && el.parentElement.dataset.line !== el.dataset.line);
     const outermost = changed.filter((el) => !changed.some((outer) => outer !== el && outer.contains(el)));
-    deltas = [...new Set(outermost.map(ownerOf))];
-    deltas.forEach((el) => el.classList.add('delta'));
-    $('#changes').hidden = deltas.length === 0;
-    $('#clear-changes').hidden = deltas.length === 0;
-    $('#changes').textContent = `${deltas.length} changed`;
+    return [...new Set(outermost.map(ownerOf))];
   }
 
-  function nextDelta() {
-    const el = deltas[deltaIndex % deltas.length];
-    deltaIndex += 1;
-    el.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
+  function markChanged() {
+    document.querySelectorAll('.delta').forEach((el) => el.classList.remove('delta'));
+    unseen().filter((c) => c.reply.lines?.length).forEach((c) => changedElements(c.reply.lines).forEach((el) => el.classList.add('delta')));
   }
 
-  // Changes are outlined against a baseline that only moves when the reader clears them.
-  function baseVersion() {
-    try {
-      const base = sessionStorage.getItem(BASE_KEY);
-      if (base) {
-        return base;
+  let resolved = {};
+  const timeOf = (iso) => (iso ? Date.parse(iso) : 0);
+  const inThread = (c) => c.kind !== 'answer' && c.kind !== 'approve';
+  const latestReply = (thread) => thread.items.filter((c) => c.reply).pop() ?? null;
+
+  function threadsOf() {
+    const byKey = new Map();
+    const threadOf = (key) => {
+      if (!byKey.has(key)) {
+        byKey.set(key, { key, items: [], drafts: [], latestAt: 0, resolved: false });
       }
-      sessionStorage.setItem(BASE_KEY, RENDERED);
-    } catch {}
-    return RENDERED;
+      return byKey.get(key);
+    };
+    sent.filter(inThread).forEach((c) => {
+      const thread = threadOf(c.target);
+      thread.items.push(c);
+      thread.latestAt = Math.max(thread.latestAt, timeOf(c.sentAt), timeOf(c.reply?.at));
+    });
+    drafts.filter(inThread).forEach((c) => threadOf(c.target).drafts.push(c));
+    return [...byKey.values()].map((t) => ({ ...t, resolved: Boolean(resolved[t.key]) && timeOf(resolved[t.key]) >= t.latestAt }));
   }
-  const since = baseVersion();
 
-  function clearDeltas() {
-    try { sessionStorage.setItem(BASE_KEY, RENDERED); } catch {}
-    deltas.forEach((el) => el.classList.remove('delta'));
-    deltas = [];
-    $('#changes').hidden = true;
-    $('#clear-changes').hidden = true;
+  // A renamed element is found again by its source line, then through what a reply changed, then its section.
+  function anchorFor(thread) {
+    if (thread.key === 'document') {
+      return null;
+    }
+    const found = findTarget(thread.key);
+    return (found && ownerOf(found)) ?? lineAnchor(thread) ?? replyAnchor(thread) ?? sectionAnchor(thread);
+  }
+
+  function lineAnchor(thread) {
+    const line = thread.items.find((c) => c.now)?.now;
+    const el = line && document.querySelector(`main [data-line="${line}"]`);
+    return el ? ownerOf(el.closest('[data-ct]') ?? el) : null;
+  }
+
+  const replyAnchor = (thread) => thread.items.filter((c) => c.reply?.lines?.length).reverse().map((c) => changedElements(c.reply.lines)[0]).find(Boolean) ?? null;
+  const sectionAnchor = (thread) => [...document.querySelectorAll('main section > h2')].find((h) => h.textContent.trim() === thread.key.split(' › ')[0]) ?? null;
+
+  function ago(iso) {
+    const seconds = (Date.now() - timeOf(iso)) / 1000;
+    if (!iso || seconds < 60) {
+      return 'now';
+    }
+    if (seconds < 3600) {
+      return `${Math.floor(seconds / 60)} min`;
+    }
+    if (seconds < 86400) {
+      return `${Math.floor(seconds / 3600)} h`;
+    }
+    return new Date(iso).toLocaleDateString();
+  }
+
+  function chip(kind, text, spinning) {
+    const span = document.createElement('span');
+    span.className = `chip ${kind}`;
+    if (spinning) {
+      span.append(loader(text));
+    }
+    span.append(text);
+    return span;
+  }
+
+  function changedLabel(lines) {
+    const section = changedElements(lines)[0]?.closest('section');
+    const h2 = section?.querySelector('h2');
+    if (!h2) {
+      return 'changed';
+    }
+    const n = [...document.querySelectorAll('main section')].indexOf(section) + 1;
+    return `changed · ${String(n).padStart(2, '0')} ${tidy(h2.textContent)}`;
+  }
+
+  const messagesOf = (thread) => thread.items.flatMap((c) => [{ id: c.id, who: 'me', c }, ...(c.reply ? [{ id: `${c.id}:r`, who: 'claude', c }] : [])]);
+  const messageText = (c) => (c.kind === 'expand' ? c.text || 'Expand this' : c.text);
+
+  function messageEl(m) {
+    const el = document.createElement('div');
+    el.className = `msg ${m.who}`;
+    el.dataset.id = m.id;
+    el.innerHTML = '<div class="who"><span></span><small></small></div><div class="text"></div>';
+    el.querySelector('.who span').textContent = m.who === 'me' ? 'You' : 'Claude';
+    el.querySelector('small').dataset.at = (m.who === 'me' ? m.c.sentAt : m.c.reply.at) ?? '';
+    el.querySelector('.text').textContent = m.who === 'me' ? messageText(m.c) : m.c.reply.text;
+    if (m.who === 'me' && !m.c.reply) {
+      el.append(chip('waiting', 'Claude is working', true));
+    }
+    if (m.who === 'claude' && m.c.reply.lines?.length) {
+      el.append(chip('changed', changedLabel(m.c.reply.lines)));
+    }
+    if (m.who === 'claude' && m.c.kind === 'expand') {
+      el.append(infoLink(m.c));
+    }
+    return el;
+  }
+
+  function infoLink(c) {
+    const b = document.createElement('button');
+    b.className = 'info-link';
+    b.dataset.a = 'info';
+    b.textContent = 'Show in Info';
+    b.onclick = (e) => {
+      e.stopPropagation();
+      const thread = threadsOf().find((t) => t.key === c.target);
+      const owner = thread && anchorFor(thread);
+      if (owner) {
+        openSheet(owner, 'info');
+      }
+    };
+    return b;
+  }
+
+  const expandedKeys = new Set();
+  const shownMsgs = new Set();
+  const cards = new Map();
+  const showIndex = new Map();
+  let anchors = new Map();
+  let marginReady = false;
+  const FOLD_KEY = `${KEY}:folded`;
+  let foldedKeys = new Set();
+  try { foldedKeys = new Set(JSON.parse(localStorage.getItem(FOLD_KEY)) || []); } catch {}
+  const marginHidden = () => !$('.margin').offsetParent;
+
+  function setFolded(key, folded) {
+    if (folded) {
+      (cards.get(key)?.thread.items ?? []).filter((c) => c.reply).forEach((c) => seenIds?.add(c.id));
+      saveSeen();
+      foldedKeys.add(key);
+    } else {
+      foldedKeys.delete(key);
+    }
+    try { localStorage.setItem(FOLD_KEY, JSON.stringify([...foldedKeys])); } catch {}
+    render();
+  }
+
+  function draftEl(c) {
+    const el = messageEl({ id: c.id, who: 'me', c: { ...c, reply: { text: '', lines: [] } } });
+    el.classList.add('draft');
+    el.append(chip('draft', 'not sent'));
+    return el;
+  }
+
+  function threadCard(thread) {
+    const card = document.createElement('div');
+    card.className = thread.key === 'document' ? 'thread general' : 'thread';
+    card.dataset.key = thread.key;
+    card.onclick = (e) => onThreadClick(e, thread.key);
+    const msgs = messagesOf(thread);
+    if (foldedKeys.has(thread.key)) {
+      card.classList.add('folded');
+      card.textContent = `💬 ${msgs.length + thread.drafts.length}`;
+      card.title = 'Unfold';
+      return card;
+    }
+    const earlier = msgs.length > 3 && !expandedKeys.has(thread.key) ? msgs.length - 1 : 0;
+    msgs.slice(earlier).forEach((m) => card.append(messageEl(m)));
+    if (earlier) {
+      const more = document.createElement('button');
+      more.className = 'earlier';
+      more.dataset.a = 'earlier';
+      more.textContent = `▾ ${earlier} earlier in this thread`;
+      card.append(more);
+    }
+    thread.drafts.forEach((c) => card.append(draftEl(c)));
+    card.append(threadTools(thread));
+    return card;
+  }
+
+  function threadTools(thread) {
+    const tools = document.createElement('div');
+    tools.className = 'tools';
+    tools.innerHTML = '<div class="actions"><button data-a="show">Show change</button><button data-a="open-info">ⓘ Info</button><button data-a="open-code">‹/› Code</button><button data-a="fold">Fold</button><button data-a="resolve">Resolve</button></div><textarea rows="1" placeholder="Reply…"></textarea><div class="row"><button data-a="batch">Add to batch</button><button data-a="send" class="primary">Send now ⌘↵</button></div>';
+    const anchor = anchorFor(thread);
+    tools.querySelector('[data-a=show]').hidden = !latestReply(thread)?.reply.lines?.length;
+    tools.querySelector('[data-a=open-info]').hidden = !anchor || !mores.has(anchor);
+    tools.querySelector('[data-a=open-code]').hidden = !anchor || !served || !refsFor(anchor).length;
+    tools.querySelector('[data-a=resolve]').hidden = !thread.items.length || thread.resolved;
+    tools.querySelector('textarea').onkeydown = (e) => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        replyFrom(e.target, thread.key, true);
+      }
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        e.target.blur();
+      }
+    };
+    return tools;
+  }
+
+  const threadByKey = (key) => threadsOf().find((t) => t.key === key);
+
+  function runThreadAction(e, key, root) {
+    const thread = threadByKey(key);
+    const reply = (now) => replyFrom(root.querySelector('.tools textarea'), key, now);
+    const actions = {
+      earlier: () => { expandedKeys.add(key); renderMargin(); },
+      show: () => showChange(thread),
+      'open-info': () => openSheet(anchorFor(thread), 'info'),
+      'open-code': () => openSheet(anchorFor(thread), 'code'),
+      fold: () => setFolded(key, true),
+      resolve: () => resolveThread(key, true),
+      send: () => reply(true),
+      batch: () => reply(false),
+    };
+    const action = actions[e.target.closest('[data-a]')?.dataset.a];
+    if (action) {
+      action();
+    }
+    return Boolean(action);
+  }
+
+  function onThreadClick(e, key) {
+    if (e.target.closest('textarea') || getSelection()?.toString()) {
+      return;
+    }
+    if (foldedKeys.has(key)) {
+      setFolded(key, false);
+      return;
+    }
+    if (!runThreadAction(e, key, cards.get(key).el)) {
+      selectThread(threadByKey(key));
+    }
+  }
+
+  function onPanelThreadClick(e, key, item) {
+    if (e.target.closest('textarea') || getSelection()?.toString()) {
+      return;
+    }
+    if (!runThreadAction(e, key, item)) {
+      flashChange(threadByKey(key));
+    }
+  }
+
+  let selectedKey = null;
+
+  // Wide screens select the thread in the margin; without a margin, the panel shows it alone.
+  function selectThread(thread, reply = false) {
+    if (!thread) {
+      return;
+    }
+    if (marginHidden() || thread.resolved) {
+      openThreadInPanel(thread);
+      return;
+    }
+    selectedKey = thread.key;
+    markSeen(thread.items.filter((c) => c.reply).map((c) => c.id));
+    expandedKeys.add(thread.key);
+    if (foldedKeys.has(thread.key)) {
+      setFolded(thread.key, false);
+    } else {
+      renderMargin();
+    }
+    flashChange(thread);
+    if (reply) {
+      cards.get(thread.key)?.el.querySelector('.tools textarea')?.focus({ preventScroll: true });
+    }
+  }
+
+  // An element with a thread opens its sheet like any other, then the thread takes the place of the comment popover.
+  function openElementThread(el, thread) {
+    if (!followsSheet(el) || sheetOwner === el) {
+      selectThread(thread, true);
+      return;
+    }
+    openSheet(el, defaultTab(el), () => selectThread(thread, true));
+  }
+
+  function clearSelection() {
+    if (!selectedKey) {
+      return false;
+    }
+    selectedKey = null;
+    link();
+    return true;
+  }
+
+  function threadOn(el) {
+    return threadsOf().find((t) => t.items.length && (t.key === el.dataset.ct || anchorFor(t) === el));
+  }
+
+  // A reply carries Claude's last answer as its quote, so the agent sees which thread it continues.
+  function threadReply(thread, text) {
+    const last = latestReply(thread);
+    const quote = last ? `↩ ${last.reply.text}`.slice(0, 300) : '';
+    return { ...commentFrom(anchorFor(thread), text, quote), target: thread.key };
+  }
+
+  function replyFrom(ta, key, now) {
+    const thread = threadByKey(key);
+    const text = ta?.value.trim();
+    if (!thread || !text) {
+      return;
+    }
+    ta.value = '';
+    const c = threadReply(thread, text);
+    if (now) {
+      post([c]);
+      return;
+    }
+    drafts.push(c);
+    persist();
+    render();
+  }
+
+  // A poll already in flight carries the old map; the reader's choice holds until the server agrees.
+  const pendingResolve = new Map();
+
+  function mergeResolved(server) {
+    const merged = { ...server };
+    pendingResolve.forEach((at, key) => {
+      if (Boolean(server[key]) === Boolean(at)) {
+        pendingResolve.delete(key);
+      } else if (at) {
+        merged[key] = at;
+      } else {
+        delete merged[key];
+      }
+    });
+    return merged;
+  }
+
+  async function resolveThread(key, value) {
+    const at = value ? new Date().toISOString() : null;
+    pendingResolve.set(key, at);
+    resolved = mergeResolved(resolved);
+    if (at) {
+      resolved[key] = at;
+    }
+    render();
+    try {
+      await fetch('resolve', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ target: key, resolved: value }) });
+    } catch {}
+  }
+
+  function flashInto(el) {
+    el.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 1200);
+  }
+
+  function showChange(thread) {
+    const els = changedElements(latestReply(thread)?.reply.lines ?? []);
+    if (!els.length) {
+      return;
+    }
+    const i = (showIndex.get(thread.key) ?? 0) % els.length;
+    showIndex.set(thread.key, i + 1);
+    flashInto(els[i]);
+  }
+
+  function flashChange(thread) {
+    const el = changedElements(latestReply(thread)?.reply.lines ?? [])[0] ?? anchorFor(thread);
+    if (el) {
+      flashInto(el);
+    }
+  }
+
+  function revealUnseenInPanel() {
+    const keys = new Set(unseen().map((c) => c.target));
+    [...document.querySelectorAll('.panel .thread-item')].find((el) => keys.has(el.dataset.key))?.scrollIntoView({ block: 'nearest' });
+  }
+
+  function openThreadInPanel(thread) {
+    if (!thread) {
+      return;
+    }
+    markSeen(thread.items.filter((c) => c.reply).map((c) => c.id));
+    flashChange(thread);
+    panelFocus = thread.key;
+    renderPanel();
+    togglePanel(true);
+  }
+
+  const SEEN_AFTER_MS = 1500;
+  const visibleSince = new Map();
+
+  function unfoldUnseen() {
+    const keys = unseen().map((c) => c.target).filter((key) => foldedKeys.has(key));
+    if (keys.length) {
+      keys.forEach((key) => foldedKeys.delete(key));
+      try { localStorage.setItem(FOLD_KEY, JSON.stringify([...foldedKeys])); } catch {}
+    }
+  }
+
+  // Where a reader would notice a reply: its thread in the margin, else what it changed, else its element.
+  function seenTarget(c) {
+    const card = cards.get(c.target)?.el;
+    if (card?.offsetParent && !card.classList.contains('folded')) {
+      return card;
+    }
+    if ($('.panel').classList.contains('open')) {
+      return [...document.querySelectorAll('.panel .thread-item')].find((el) => el.dataset.key === c.target) ?? null;
+    }
+    const thread = threadsOf().find((t) => t.key === c.target);
+    return changedElements(c.reply.lines ?? [])[0] ?? (thread && anchorFor(thread)) ?? null;
+  }
+
+  function halfVisible(el) {
+    const r = el.getBoundingClientRect();
+    const shown = Math.min(r.bottom, innerHeight) - Math.max(r.top, 0);
+    return r.height > 0 && shown >= Math.min(r.height, innerHeight) / 2;
+  }
+
+  function watchSeen() {
+    if (document.visibilityState !== 'visible' || !seenIds) {
+      return;
+    }
+    const now = Date.now();
+    const done = unseen().filter((c) => {
+      const el = seenTarget(c);
+      if (!el) {
+        return !inThread(c);
+      }
+      if (!halfVisible(el)) {
+        visibleSince.delete(c.id);
+        return false;
+      }
+      visibleSince.set(c.id, visibleSince.get(c.id) ?? now);
+      return now - visibleSince.get(c.id) >= SEEN_AFTER_MS;
+    });
+    if (done.length) {
+      markSeen(done.map((c) => c.id));
+    }
+  }
+
+  function offscreen() {
+    const els = unseen().filter(inThread).map(seenTarget).filter(Boolean);
+    return {
+      above: els.filter((el) => el.getBoundingClientRect().bottom < 0).sort((a, b) => b.getBoundingClientRect().top - a.getBoundingClientRect().top),
+      below: els.filter((el) => el.getBoundingClientRect().top > innerHeight).sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top),
+    };
+  }
+
+  function renderOffscreen() {
+    const found = offscreen();
+    const margin = $('.margin');
+    const column = margin.offsetParent ? margin.getBoundingClientRect() : null;
+    [['above', '↑'], ['below', '↓']].forEach(([side, arrow]) => {
+      const note = $(`.offscreen-note.${side}`);
+      const n = found[side].length;
+      note.hidden = n === 0;
+      note.textContent = `${arrow} ${n} new ${n === 1 ? 'reply' : 'replies'} ${side}`;
+      note.style.left = column ? `${column.left}px` : '';
+      note.classList.toggle('docked', Boolean(column));
+    });
+  }
+
+  function jumpToUnseen(side) {
+    offscreen()[side][0]?.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
+  }
+
+  let badges = [];
+  let badgeSig = null;
+
+  // A thread that is not in the margin, resolved or on a narrow screen, keeps a counter on its element.
+  function renderBadges() {
+    const off = threadsOf().filter((t) => t.items.length && (t.resolved || marginHidden())).map((t) => [t, anchorFor(t)]).filter(([, a]) => a);
+    const sig = JSON.stringify(off.map(([t]) => [t.key, messagesOf(t).length]));
+    if (sig !== badgeSig) {
+      badgeSig = sig;
+      badges.forEach(([b]) => b.remove());
+      badges = off.map(([t, anchor]) => [badge(t), anchor]);
+    } else {
+      badges = badges.map(([b], i) => [b, off[i][1]]);
+    }
+    positionBadges();
+  }
+
+  function badge(thread) {
+    const b = document.createElement('button');
+    b.className = 'tbadge';
+    b.textContent = `💬 ${messagesOf(thread).length}`;
+    b.title = thread.resolved ? 'Resolved thread · open in the panel' : 'Open the thread';
+    b.onclick = (e) => {
+      e.stopPropagation();
+      openThreadInPanel(threadsOf().find((t) => t.key === thread.key));
+    };
+    document.body.appendChild(b);
+    return b;
+  }
+
+  function positionBadges() {
+    badges.forEach(([b, el]) => {
+      const r = el.getBoundingClientRect();
+      b.style.left = `${r.right + scrollX - b.offsetWidth + 8 - (el.dataset.cn ? 28 : 0)}px`;
+      b.style.top = `${r.top + scrollY - 11}px`;
+    });
+  }
+
+  function markArrivals(card, isNew) {
+    if (marginReady && isNew) {
+      card.classList.add('arrive');
+    }
+    card.querySelectorAll('.msg').forEach((m) => {
+      if (marginReady && !isNew && !shownMsgs.has(m.dataset.id)) {
+        m.classList.add('arrive');
+      }
+      shownMsgs.add(m.dataset.id);
+    });
+  }
+
+  const threadSig = (t) => JSON.stringify([t.items.map((c) => [c.id, c.reply?.text ?? null, c.reply?.lines ?? null]), t.drafts.map((c) => [c.id, c.text]), expandedKeys.has(t.key), foldedKeys.has(t.key)]);
+
+  // A card is rebuilt only when its thread changed, so a poll never restarts an animation or drops hover.
+  function renderMargin() {
+    const open = threadsOf().filter((t) => (t.items.length || t.drafts.length) && !t.resolved);
+    const keys = new Set(open.map((t) => t.key));
+    cards.forEach((entry, key) => {
+      if (!keys.has(key)) {
+        leave(entry);
+        cards.delete(key);
+      }
+    });
+    open.forEach((thread) => {
+      const sig = threadSig(thread);
+      const entry = cards.get(thread.key);
+      if (entry?.sig === sig) {
+        entry.thread = thread;
+        return;
+      }
+      const el = threadCard(thread);
+      markArrivals(el, !entry);
+      if (entry) {
+        keepTyping(entry.el, el);
+        const from = { box: entry.el.getBoundingClientRect(), radius: getComputedStyle(entry.el).borderRadius };
+        entry.el.replaceWith(el);
+        morph(el, from);
+      } else {
+        $('.margin').append(el);
+      }
+      cards.set(thread.key, { sig, el, thread });
+    });
+    marginReady = true;
+    document.querySelectorAll('.margin small[data-at]').forEach((small) => {
+      small.textContent = ago(small.dataset.at);
+    });
+    layoutMargin();
+    renderBadges();
+    cardSizes.disconnect();
+    [...cards.values(), ...leavers.values()].forEach(({ el }) => cardSizes.observe(el));
+  }
+
+  const leavers = new Map();
+
+  // A resolved card keeps its place while it slides out, then gives it up as it collapses.
+  function leave({ el, thread }) {
+    el.classList.remove('arrive');
+    el.classList.add('leaving');
+    delete el.dataset.key;
+    if (el.contains(document.activeElement)) {
+      document.activeElement.blur();
+    }
+    leavers.set(el, { el, thread, full: el.offsetHeight, top: parseFloat(el.style.top) || 0 });
+    setTimeout(() => collapse(el), 300);
+  }
+
+  function collapse(el) {
+    const done = () => {
+      leavers.delete(el);
+      el.remove();
+      layoutMargin();
+    };
+    if (reducedMotion.matches || !el.offsetHeight) {
+      done();
+      return;
+    }
+    el.style.overflow = 'clip';
+    el.animate([{ height: `${el.offsetHeight}px` }, { height: '0px', paddingBlock: '0px', borderWidth: '0px' }], { duration: 260, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' }).finished.then(done, done);
+  }
+
+  // A collapsing card's height and its gap shrink together, so the card below closes up without a jump at the end.
+  const spaceOf = (entry, gap) => {
+    const leaver = leavers.get(entry.el);
+    return leaver ? (entry.el.offsetHeight * (leaver.full + gap)) / leaver.full - gap : entry.el.offsetHeight;
+  };
+
+  const cardHeights = new WeakMap();
+
+  // A rebuilt card eases from its old size to its new one; widening is clipped, not animated, so text never rewraps midway.
+  function morph(el, from) {
+    const to = { box: el.getBoundingClientRect(), radius: getComputedStyle(el).borderRadius };
+    if (reducedMotion.matches || (Math.abs(from.box.height - to.box.height) < 1 && Math.abs(from.box.width - to.box.width) < 1)) {
+      return;
+    }
+    const start = { height: `${from.box.height}px`, borderRadius: from.radius };
+    const end = { height: `${to.box.height}px`, borderRadius: to.radius };
+    if (to.box.width > from.box.width) {
+      start.clipPath = `inset(0 ${to.box.width - from.box.width}px 0 0 round ${from.radius})`;
+      end.clipPath = `inset(0 0 0 0 round ${to.radius})`;
+    } else {
+      start.width = `${from.box.width}px`;
+      end.width = `${to.box.width}px`;
+    }
+    cardHeights.set(el, from.box.height);
+    el.style.overflow = 'clip';
+    el.animate([start, end], { duration: 300, easing: 'cubic-bezier(.2, .8, .2, 1)' }).finished.then(() => el.style.removeProperty('overflow'), () => {});
+  }
+
+  // A card that grows in place (reply row, typing) moves the cards below in the same frame, without the glide lagging behind.
+  const cardSizes = new ResizeObserver((entries) => {
+    const resized = entries.map(({ target, borderBoxSize }) => {
+      const before = cardHeights.get(target);
+      cardHeights.set(target, borderBoxSize[0].blockSize);
+      return before !== undefined && before !== borderBoxSize[0].blockSize;
+    });
+    if (resized.some(Boolean)) {
+      followMargin();
+    }
+  });
+
+  function followMargin() {
+    const margin = $('.margin');
+    margin.classList.add('following');
+    layoutMargin();
+    requestAnimationFrame(() => margin.classList.remove('following'));
+  }
+
+  function keepTyping(from, to) {
+    const old = from.querySelector('.tools textarea');
+    const next = to.querySelector('.tools textarea');
+    if (old && next && old.value) {
+      next.value = old.value;
+    }
+    if (old && next && document.activeElement === old) {
+      requestAnimationFrame(() => next.focus());
+    }
+  }
+
+  function layoutThreads(wanted, heights, gap = 8) {
+    let floor = -Infinity;
+    return wanted.map((w, i) => {
+      const top = Math.max(w, floor);
+      floor = top + heights[i] + gap;
+      return top;
+    });
+  }
+
+  function layoutMargin() {
+    const margin = $('.margin');
+    if (!margin.offsetParent) {
+      return;
+    }
+    const base = margin.getBoundingClientRect();
+    const head = parseFloat(getComputedStyle(margin).paddingTop);
+    const placed = [...cards.values(), ...leavers.values()].map((entry) => {
+      const anchor = entry.top === undefined ? anchorFor(entry.thread) : null;
+      const wanted = anchor ? anchor.getBoundingClientRect().top - base.top : entry.top ?? head;
+      return { entry, anchor, wanted, order: entry.thread.key === 'document' ? -Infinity : Math.round(wanted), now: parseFloat(entry.el.style.top) || 0 };
+    }).sort((a, b) => a.order - b.order || a.now - b.now);
+    const tops = layoutThreads(placed.map((p) => p.wanted), placed.map((p) => spaceOf(p.entry, 8)));
+    placed.forEach((p, i) => {
+      p.entry.el.style.top = `${tops[i]}px`;
+    });
+    anchors = new Map(placed.filter((p) => p.anchor).map((p) => [p.entry.thread.key, p.anchor]));
+    link();
+  }
+
+  let linked = [];
+  let hoverKey = null;
+
+  function link() {
+    linked.forEach((el) => el.classList.remove('linked'));
+    linked = [...new Set([hoverKey, selectedKey])].filter(Boolean).flatMap((key) => [cards.get(key)?.el, anchors.get(key)]).filter(Boolean);
+    linked.forEach((el) => el.classList.add('linked'));
+    cards.forEach(({ el }, key) => el.classList.toggle('selected', key === selectedKey));
+  }
+
+  function linkFromHover(e) {
+    const card = e.target.closest('.margin .thread');
+    const el = card ? null : e.target.closest('[data-ct]');
+    hoverKey = card?.dataset.key ?? [...anchors].find(([, a]) => a === el)?.[0] ?? null;
+    link();
   }
 
   const STATUS = {
@@ -1685,15 +2856,6 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     showPop(pop, $('#status'));
   }
 
-  const hasTypedText = () => [...document.querySelectorAll('textarea')].some((t) => t.value.trim());
-
-  // Text the reader is typing outranks a newer version of the page.
-  function reloadIfPending() {
-    if (pendingReload && !hasTypedText()) {
-      reloadKeepingScroll();
-    }
-  }
-
   function showUpdate(state) {
     if (installing) {
       return;
@@ -1742,27 +2904,17 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   async function poll() {
     try {
-      const state = await (await fetch(`state?since=${encodeURIComponent(since)}`, { cache: 'no-store' })).json();
+      const state = await (await fetch('state', { cache: 'no-store' })).json();
       skillVersion = state.version;
       showStatus(state.listening ? 'listening' : 'idle');
       showUpdate(state);
-      if (state.v !== version) {
-        pendingReload = true;
-        $('#reload').hidden = false;
-        reloadIfPending();
-        return;
+      if (state.v !== bodyVersion) {
+        await updateBody(state.v);
       }
-      if (firstPoll) {
-        firstPoll = false;
-        markDeltas(state.changed);
-      }
-      const replies = state.sent.filter((c) => c.reply).length;
-      if (seenReplies !== null && replies > seenReplies && !$('.panel').classList.contains('open')) {
-        $('#list').classList.add('pulse');
-      }
-      seenReplies = replies;
-      showUnseen(replies);
+      loadSeen(state.sent);
       sent = state.sent;
+      unfoldUnseen();
+      resolved = mergeResolved(state.resolved ?? {});
       render();
       motion = true;
     } catch {
@@ -1799,10 +2951,17 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       showRefInSheet(ref);
       return;
     }
-    if (e.target.closest('.bar, .panel, .pop, nav, .cbtn, .h-cbtn, a, button, dialog, .sheet .ask, .qzone')) {
+    // A thread card or panel item rebuilt by its own click handler has left the document.
+    if (!e.target.isConnected || e.target.closest('.bar, .panel, .pop, nav, .cbtn, .h-cbtn, a, button, dialog, .sheet .ask, .qzone, .margin, .live-stage')) {
       return;
     }
     const el = e.target.closest('[data-ct]');
+    const thread = el && threadOn(el);
+    if (thread) {
+      openElementThread(el, thread);
+      return;
+    }
+    clearSelection();
     if (el) {
       commentOn(el);
     } else if (openPopEl() && !openPopEl().matches('.general')) {
@@ -1839,16 +2998,29 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       closeSheet();
     } else if ($('.panel').classList.contains('open')) {
       togglePanel(false);
+    } else {
+      clearSelection();
     }
   });
 
   cbtn.innerHTML = ICON;
   cbtn.onmousedown = (e) => e.preventDefault();
   cbtn.onclick = () => { if (hot) { commentOn(hot); } };
-  $('#list').onclick = () => togglePanel(!$('.panel').classList.contains('open'));
+  $('#list').onclick = () => {
+    if ($('.panel').classList.contains('open')) {
+      togglePanel(false);
+      return;
+    }
+    panelFocus = null;
+    renderPanel();
+    togglePanel(true).then(revealUnseenInPanel);
+  };
   $('#status').onclick = showStatusHelp;
   $('#theme').onclick = toggleTheme;
   systemDark.addEventListener('change', showThemeButton);
+  systemDark.addEventListener('change', () => syncLives(true));
+  reducedMotion.addEventListener('change', () => syncLives(true));
+  new MutationObserver(() => syncLives(true)).observe(document.documentElement, { attributeFilter: ['data-theme'] });
   $('.panel .general [data-a=batch]').onclick = () => submitGeneral(false);
   $('.panel .general [data-a=send]').onclick = () => submitGeneral(true);
   $('.panel .general textarea').onkeydown = (e) => {
@@ -1871,7 +3043,10 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   };
   $('#send').onclick = sendBatch;
   $('#approve').onclick = requestApproval;
-  document.addEventListener('visibilitychange', () => showUnseen(sent.filter((c) => c.reply).length));
+  setInterval(watchSeen, 250);
+  addEventListener('scroll', () => requestAnimationFrame(renderOffscreen), { passive: true });
+  $('.offscreen-note.above').onclick = () => jumpToUnseen('above');
+  $('.offscreen-note.below').onclick = () => jumpToUnseen('below');
   const closeDialog = () => animate('dialog', () => $('dialog.confirm').close());
   $('dialog.confirm [data-a=cancel]').onclick = closeDialog;
   $('dialog.confirm').addEventListener('cancel', (e) => {
@@ -1882,20 +3057,27 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     closeDialog();
     approve();
   };
-  $('#reload').onclick = reloadKeepingScroll;
   $('#update').onclick = installUpdate;
   addEventListener('resize', positionPins);
   new ResizeObserver(([entry]) => {
     document.documentElement.style.setProperty('--bar-h', `${Math.ceil(entry.borderBoxSize[0].blockSize)}px`);
     positionPins();
   }).observe($('.bar'));
-  $('#changes').onclick = nextDelta;
-  $('#clear-changes').onclick = clearDeltas;
+  document.addEventListener('mouseover', linkFromHover);
+  addEventListener('resize', layoutMargin);
+  addEventListener('resize', positionBadges);
+  document.fonts.ready.then(layoutMargin);
+  new ResizeObserver(() => {
+    layoutMargin();
+    renderBadges();
+  }).observe($('main'));
 
   showThemeButton();
   requestAnimationFrame(() => requestAnimationFrame(() => $('#theme').classList.add('ready')));
   tagTargets();
   collectMores();
+  syncLives();
+  addLegends();
   setupQuestions();
   addSectionButtons();
   buildToc();

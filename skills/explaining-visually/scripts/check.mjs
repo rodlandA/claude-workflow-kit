@@ -276,6 +276,574 @@ async function checkServerGuards(url, dir) {
   check((await request(new URL('state', url).href)) === 200, 'server: /state survives a broken comments file');
 }
 
+const SIDECARS = ['comments.jsonl', 'replies.json', 'resolved.json', 'replied.html', 'cursor'];
+
+function resetPage(dir) {
+  SIDECARS.forEach((ext) => fs.rmSync(path.join(dir, `example.${ext}`), { force: true }));
+  fs.copyFileSync(path.join(here, '..', 'example.body.html'), path.join(dir, 'example.body.html'));
+}
+
+let bodyClock = 0;
+
+// Two edits within one millisecond would share an mtime, and the mtime is the page version.
+function editBody(dir, from, to) {
+  const file = path.join(dir, 'example.body.html');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(from, to));
+  bodyClock += 1;
+  const t = Date.now() / 1000 + bodyClock;
+  fs.utimesSync(file, t, t);
+}
+
+const replyTo = (dir, id, text) => execFileSync(process.execPath, [path.join(here, 'serve.mjs'), '--reply', id, text, '--dir', dir], { encoding: 'utf8' });
+const postComments = (url, comments) => request(new URL('comments', url).href, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ comments }) });
+const state = async (url) => (await fetch(new URL('state', url))).json();
+const postResolve = (url, body, headers = {}) => request(new URL('resolve', url).href, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+
+async function checkServerThreads(url, dir) {
+  resetPage(dir);
+  const target = 'Steps › Add cookie middleware beside bearer auth';
+  await postComments(url, [{ id: 'ta', target, line: 60, text: 'a' }, { id: 'tb', target, line: 60, text: 'b' }]);
+  editBody(dir, 'Add cookie middleware beside bearer auth', 'Add the cookie middleware beside bearer auth');
+  replyTo(dir, 'ta', 'renamed');
+  replyTo(dir, 'tb', 'nothing more');
+  let s = await state(url);
+  const ra = s.sent.find((c) => c.id === 'ta').reply;
+  check(ra.lines?.length > 0 && !('changed' in s), 'threads: a reply owns the lines changed since the previous reply');
+  check(s.sent.find((c) => c.id === 'tb').reply.lines?.length === 0, 'threads: a reply after no edit owns no lines');
+  editBody(dir, '<h1', '<!-- shift -->\n<h1');
+  s = await state(url);
+  check(Boolean(ra.lines) && s.sent.find((c) => c.id === 'ta').reply.lines[0] === ra.lines[0] + 1, 'threads: owned lines follow the body when lines above move');
+  await postComments(url, [{ id: 'tc', target, line: 60, text: 'c' }]);
+  editBody(dir, '<div class="box new"><b>Cookie auth middleware</b><code>api/auth/cookie.ts</code></div>', '<div class="box new"><b>Cookie auth middleware</b><code>api/auth/cookie.ts</code></div>\n        <div class="arrow"></div>');
+  replyTo(dir, 'tc', 'added an arrow');
+  const body = fs.readFileSync(path.join(dir, 'example.body.html'), 'utf8').split('\n');
+  const added = body.findIndex((l) => l.includes('Cookie auth middleware')) + 2;
+  const firstCopy = body.indexOf('        <div class="arrow"></div>') + 1;
+  const credited = (await state(url)).sent.find((c) => c.id === 'tc').reply.lines;
+  check(credited.includes(added) && !credited.includes(firstCopy), 'threads: a repeated line is credited where it was added, not to its first copy');
+  check((await postResolve(url, { target, resolved: true })) === 200, 'threads: resolve accepts a target');
+  check(Boolean((await state(url)).resolved?.[target]), 'threads: state lists resolved targets');
+  check((await postResolve(url, { target, resolved: false })) === 200 && !(await state(url)).resolved?.[target], 'threads: a resolved target can be reopened');
+  check((await postResolve(url, {}, { origin: 'http://evil.example' })) === 403, 'threads: resolve refuses a foreign origin');
+  resetPage(dir);
+  await postComments(url, [{ id: 'wa', target, line: 60, text: 'answered before listening' }, { id: 'wb', target, line: 60, text: 'still open' }]);
+  replyTo(dir, 'wa', 'done');
+  const watcher = spawn(process.execPath, [path.join(here, 'serve.mjs'), 'example', '--dir', dir, '--watch'], { stdio: ['ignore', 'pipe', 'ignore'] });
+  let heard = '';
+  watcher.stdout.on('data', (chunk) => {
+    heard += chunk;
+  });
+  await new Promise((done) => setTimeout(done, 1500));
+  watcher.kill();
+  check(heard.includes('still open') && !heard.includes('answered before listening'), 'watch: a comment answered before the watcher starts is not delivered again');
+  resetPage(dir);
+}
+
+async function checkLiveUpdate(browser, url, dir) {
+  resetPage(dir);
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => { window.alive = true; });
+  await page.locator('.qcard .opt').nth(1).click();
+  editBody(dir, '<p class="lede">', '<p class="lede">Edited. ');
+  await page.waitForTimeout(3000);
+  check(await page.evaluate(() => window.alive === true), 'live: a body change does not reload the page');
+  check((await page.locator('.qcard .opt.on').count()) === 1, 'live: a selected but unsent answer survives a body change');
+  check((await page.locator('main .lede').textContent()).startsWith('Edited.'), 'live: the changed element is swapped in');
+  await page.locator('main .box').first().click();
+  await page.locator('.pop textarea').fill('half typed');
+  editBody(dir, '<b>Login form</b>', '<b>Login form</b> ');
+  await page.waitForTimeout(3000);
+  check((await page.locator('.pop textarea').inputValue()) === 'half typed', 'live: text in an open comment survives a body change');
+  await page.keyboard.press('Escape');
+  await page.locator('tr[data-c="cookie.ts"]').click();
+  await page.waitForTimeout(400);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(700);
+  editBody(dir, 'so routes need no change.</p>', 'so routes need no change.</p><p>More detail.</p>');
+  await page.waitForTimeout(3000);
+  const sheet = await page.evaluate(() => ({ open: !document.querySelector('.sheet').hidden, text: document.querySelector('.sheet-body').textContent }));
+  check(sheet.open && sheet.text.includes('More detail.'), 'live: an open Info sheet shows the extended aside');
+  check(await page.evaluate(() => document.querySelectorAll('aside.more').length === 1), 'live: the replaced aside leaves no stale copy behind');
+  check(await page.evaluate(() => window.alive === true), 'live: the page is still the same page after several changes');
+  await page.close();
+  resetPage(dir);
+}
+
+const boxOf = (page, sel) => page.evaluate((s) => {
+  const r = document.querySelector(s)?.getBoundingClientRect();
+  return r ? { left: r.left, right: r.right, top: r.top, bottom: r.bottom } : null;
+}, sel);
+async function linkedTo(page, key) {
+  await page.locator(`.margin .thread[data-key="${key}"]`).hover();
+  await page.waitForTimeout(100);
+  return page.evaluate(() => [...document.querySelectorAll('main .linked')].map((el) => el.dataset.ct));
+}
+
+const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+
+async function checkMarginReply(browser, url, dir) {
+  resetPage(dir);
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  await page.locator('main .box').first().click();
+  await page.locator('.pop textarea').fill('rename this');
+  await page.locator('.pop [data-a=send]').click();
+  await page.waitForTimeout(700);
+  check(await page.locator('.margin .thread .chip.waiting').isVisible(), 'margin: a sent comment opens a thread that shows Claude is working');
+  const id = (await state(url)).sent.at(-1).id;
+  await page.evaluate(() => scrollTo(0, 0));
+  editBody(dir, '<b>Login form</b>', '<b>Login form v2</b>');
+  replyTo(dir, id, 'Renamed it.');
+  await page.waitForTimeout(3000);
+  const thread = page.locator('.margin .thread').first();
+  check((await thread.locator('.msg.claude').textContent()).includes('Renamed it.'), 'margin: the reply lands in the thread');
+  check(await thread.locator('.chip.changed').isVisible() && (await page.locator('main .box.delta').count()) === 1, 'margin: the reply names and outlines what it changed');
+  const [t, b] = [await thread.boundingBox(), await page.locator('main .box').first().boundingBox()];
+  check(Math.abs(t.y - b.y) < 40, 'margin: the thread sits level with the renamed element');
+  check((await page.locator('#changes, #clear-changes, #reload').count()) === 0, 'margin: the bar no longer has change or reload buttons');
+  const target = await page.evaluate(() => document.querySelector('.margin .thread').dataset.key);
+  await postComments(url, [{ id: 'long1', target, line: 25, text: 'and this?' }]);
+  replyTo(dir, 'long1', 'Also done.');
+  await page.waitForTimeout(2600);
+  check((await thread.locator('.msg').count()) === 1 && (await thread.locator('.earlier').textContent()) === '▾ 3 earlier in this thread', 'margin: a long thread collapses to its latest message');
+  await thread.locator('.earlier').click();
+  await page.waitForTimeout(300);
+  check((await page.locator('.margin .thread').first().locator('.msg').count()) === 4, 'margin: the collapsed thread unfolds on click');
+  await page.close();
+  resetPage(dir);
+}
+
+async function checkMarginLayout(browser, url, dir) {
+  resetPage(dir);
+  let page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const items = await page.evaluate(() => [...document.querySelectorAll('.tldr li')].slice(0, 3).map((li) => ({ target: li.dataset.ct, line: Number(li.dataset.line) })));
+  await postComments(url, [...items.map((c, i) => ({ id: `lay${i}`, ...c, text: `point ${i}` })), { id: 'gen', target: 'document', line: null, text: 'overall' }]);
+  await page.waitForTimeout(2600);
+  const cards = await page.evaluate(() => [...document.querySelectorAll('.margin .thread')].map((el) => {
+    const r = el.getBoundingClientRect();
+    return { key: el.dataset.key, general: el.classList.contains('general'), left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+  }));
+  const plain = cards.filter((c) => !c.general);
+  const general = cards.find((c) => c.general);
+  check(plain.length === 3 && plain.every((a, i) => plain.every((b, j) => i === j || !overlaps(a, b))), 'margin: threads on adjacent elements never overlap');
+  const upper = plain.reduce((a, b) => (a.top < b.top ? a : b));
+  await page.locator(`.margin .thread[data-key="${upper.key}"] .tools textarea`).focus();
+  const apart = () => page.evaluate(() => {
+    const r = [...document.querySelectorAll('.margin .thread:not(.general)')].map((el) => el.getBoundingClientRect()).sort((a, b) => a.top - b.top);
+    return r.every((a, i) => i === 0 || r[i - 1].bottom <= a.top);
+  });
+  await page.waitForTimeout(120);
+  const midway = await apart();
+  await page.waitForTimeout(400);
+  check(midway && await apart() && await page.locator(`.margin .thread[data-key="${upper.key}"] [data-a=send]`).isVisible(), 'margin: opening a reply pushes the thread below along with it');
+  await page.locator('main h1').click();
+  check((await page.locator('.margin svg, .margin .tie').count()) === 0, 'margin: no lines are drawn between threads and their elements');
+  check(Boolean(general) && plain.every((c) => general.top <= c.top && general.left > c.left), 'margin: the general thread sits on top, offset right');
+  const lit = [];
+  for (const c of plain) {
+    lit.push((await linkedTo(page, c.key)).join('|'));
+  }
+  check(plain.every((c, i) => lit[i] === c.key), 'margin: hovering a thread lights up its own element');
+  const roomy = () => page.evaluate(() => ({ margin: document.querySelector('.margin').getBoundingClientRect().width, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
+  await page.locator('main .box').first().click();
+  await page.waitForTimeout(700);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  let wide = await roomy();
+  check(await page.locator('.sheet').isVisible() && wide.margin > 200 && wide.overflow <= 0, `1512px: the margin stays beside an open Info sheet (${JSON.stringify(wide)})`);
+  await page.locator('#list').click();
+  await page.waitForTimeout(700);
+  wide = await roomy();
+  check(await page.locator('.panel.open').isVisible() && wide.margin > 200 && wide.overflow <= 0, `1512px: the margin stays beside the open comments panel (${JSON.stringify(wide)})`);
+  await page.close();
+  page = await browser.newPage({ viewport: { width: 1000, height: 800 } });
+  await page.goto(url);
+  await page.waitForTimeout(1500);
+  const mid = await page.evaluate(() => ({ margin: document.querySelector('.margin').getBoundingClientRect().width, toc: getComputedStyle(document.querySelector('nav.toc')).display, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
+  check(mid.margin > 200 && mid.toc === 'flex' && mid.overflow <= 0, `1000px: the margin stays, the TOC becomes a row, no overflow (${JSON.stringify(mid)})`);
+  await page.locator('#list').click();
+  await page.waitForTimeout(700);
+  check(await page.locator('.margin').isHidden(), '1000px: the margin gives way to the comments panel when there is no room');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  await page.locator('main .step').first().click();
+  await page.waitForTimeout(500);
+  check(await page.locator('.sheet').isVisible() && await page.locator('.margin').isHidden(), '1000px: the margin gives way to the Info sheet when there is no room');
+  await page.locator('.pop textarea').fill('narrow');
+  await page.locator('.pop [data-a=send]').click();
+  await page.waitForTimeout(800);
+  check(await page.locator('.sheet').isHidden() && await page.locator('.margin .thread').first().isVisible(), '1000px: the sheet makes way so a new thread shows');
+  await page.close();
+  page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(url);
+  await page.waitForTimeout(1500);
+  check(await page.locator('.margin').isHidden(), '390px: no margin');
+  await page.close();
+  resetPage(dir);
+}
+
+const marginFrames = (page, ms) => page.evaluate((span) => new Promise((done) => {
+  const frames = [];
+  const t0 = performance.now();
+  const read = () => {
+    frames.push([...document.querySelectorAll('.margin .thread:not(.general, .leaving)')].map((el) => el.getBoundingClientRect()).sort((a, b) => a.top - b.top).map((r) => ({ top: r.top, bottom: r.bottom })));
+    if (performance.now() - t0 < span) {
+      requestAnimationFrame(tick);
+    } else {
+      done(frames);
+    }
+  };
+  // Read after the frame has rendered, so resize observers have run as they do before paint.
+  const tick = () => setTimeout(read, 0);
+  requestAnimationFrame(tick);
+}), ms);
+
+// No frame lets the threads overlap or opens a gap wider than where the motion starts or ends.
+const inStep = (frames) => {
+  const gaps = frames.map(([a, b]) => (b ? b.top - a.bottom : -1));
+  return Math.min(...gaps) >= 7.5 && Math.max(...gaps) <= Math.max(gaps[0], gaps.at(-1)) + 1.5;
+};
+
+async function checkMarginMotion(browser, url, dir) {
+  resetPage(dir);
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const items = await page.evaluate(() => [...document.querySelectorAll('.tldr li')].slice(0, 2).map((li) => ({ target: li.dataset.ct, line: Number(li.dataset.line) })));
+  await postComments(url, items.map((c, i) => ({ id: `mot${i}`, ...c, text: `a longer point number ${i} that wraps over a couple of lines in the margin` })));
+  await page.waitForTimeout(2600);
+  const upper = page.locator(`.margin .thread[data-key="${items[0].target}"]`);
+  await upper.hover();
+  let frames = marginFrames(page, 450);
+  await upper.locator('[data-a=fold]').click();
+  frames = await frames;
+  check(frames[0][1].top - frames[0][0].bottom < 9 && inStep(frames), 'motion: folding a thread moves the thread below in step');
+  await page.waitForTimeout(200);
+  frames = marginFrames(page, 450);
+  await upper.click();
+  frames = await frames;
+  check(inStep(frames), 'motion: unfolding a thread pushes the thread below in step');
+  await page.waitForTimeout(200);
+  await page.locator('main h1').click();
+  await upper.hover();
+  const lowerKey = items[1].target;
+  const departure = page.evaluate((key) => new Promise((done) => {
+    const frames = [];
+    const read = () => {
+      const gone = document.querySelector('.margin .thread.leaving');
+      const lower = document.querySelector(`.margin .thread[data-key="${key}"]`).getBoundingClientRect().top;
+      frames.push({ lower, leaving: gone ? gone.getBoundingClientRect().bottom : null });
+      if (frames.length < 70) {
+        requestAnimationFrame(() => setTimeout(read, 0));
+      } else {
+        done(frames);
+      }
+    };
+    read();
+  }), lowerKey);
+  await upper.locator('[data-a=resolve]').click();
+  await page.waitForTimeout(120);
+  const leaving = await page.evaluate(() => {
+    const el = document.querySelector('.margin .thread.leaving');
+    return el && { opacity: Number(getComputedStyle(el).opacity), x: new DOMMatrix(getComputedStyle(el).transform).m41 };
+  });
+  check(Boolean(leaving) && leaving.opacity < 1 && leaving.x > 0, `motion: a resolved thread slides out to the right (${JSON.stringify(leaving)})`);
+  await page.waitForTimeout(600);
+  check((await page.locator('.margin .thread.leaving').count()) === 0, 'motion: the resolved thread is gone once it has slid out');
+  const left = await departure;
+  check(left.every((f) => f.leaving === null || f.lower >= f.leaving - 0.5) && left.find((f) => f.leaving !== null).lower === left[0].lower && left.at(-1).lower < left[0].lower, 'motion: the thread below moves up only as the resolved one gives up its place');
+  await page.close();
+  resetPage(dir);
+}
+
+const pendingLines = (dir) => execFileSync(process.execPath, [path.join(here, 'serve.mjs'), '--pending', '--dir', dir], { encoding: 'utf8' });
+const inView = (page, sel) => page.evaluate((s) => {
+  const r = document.querySelector(s).getBoundingClientRect();
+  return r.top >= 0 && r.bottom <= innerHeight;
+}, sel);
+
+async function checkThreadActions(browser, url, dir) {
+  resetPage(dir);
+  let page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const box = await page.evaluate(() => {
+    const el = document.querySelector('main .box');
+    return { target: el.dataset.ct, line: Number(el.dataset.line) };
+  });
+  await postComments(url, [{ id: 'act1', ...box, text: 'tighten this' }]);
+  editBody(dir, '<small>POST /login</small>', '<small>POST /session</small>');
+  replyTo(dir, 'act1', 'Done.');
+  await page.waitForTimeout(2600);
+  const card = () => page.locator(`.margin .thread[data-key="${box.target}"]`);
+  await card().locator('textarea').fill('one more');
+  await card().locator('[data-a=send]').click();
+  await page.waitForTimeout(700);
+  check(pendingLines(dir).includes(`[${box.target}] "↩ Done." :: one more`), 'actions: a reply in the thread reaches Claude with its previous answer quoted');
+  await card().locator('textarea').fill('later');
+  await card().locator('[data-a=batch]').click();
+  await page.waitForTimeout(400);
+  check((await card().locator('.msg.me.draft').textContent()).includes('not sent') && (await page.locator('#send').textContent()) === 'Send batch (1)', 'actions: a batched reply shows in the thread as not sent');
+  await card().hover();
+  await card().locator('[data-a=fold]').click();
+  await page.waitForTimeout(400);
+  check((await card().getAttribute('class')).includes('folded') && (await card().textContent()).includes('💬'), 'actions: fold shrinks the thread to a tab');
+  await page.reload();
+  await page.waitForTimeout(1500);
+  check((await card().getAttribute('class')).includes('folded'), 'actions: a folded thread stays folded after a reload');
+  await card().click();
+  await page.waitForTimeout(400);
+  await card().hover();
+  await card().locator('[data-a=resolve]').click();
+  await page.waitForTimeout(700);
+  check((await card().count()) === 0 && (await page.locator('.tbadge').count()) === 1, 'actions: resolve takes the thread out of the margin and leaves a counter');
+  check(Boolean((await state(url)).resolved[box.target]), 'actions: resolve is stored on the server');
+  await page.locator('#list').click();
+  await page.waitForTimeout(700);
+  check((await page.locator(`.panel .thread-item.resolved[data-key="${box.target}"]`).count()) === 1, 'actions: the panel lists the thread under Resolved');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  const followUp = (await state(url)).sent.find((c) => c.text === 'one more').id;
+  replyTo(dir, followUp, 'Tightened.');
+  await page.waitForTimeout(2600);
+  check((await card().count()) === 1, 'actions: a new reply reopens a resolved thread');
+  await card().locator('.msg.claude').last().click();
+  await page.waitForTimeout(900);
+  const boxLit = () => page.evaluate((t) => [...document.querySelectorAll('main .linked')].some((el) => el.dataset.ct === t), box.target);
+  const selected = async () => (await card().getAttribute('class')).includes('selected');
+  check(await page.locator('.panel').isHidden() && await selected() && await boxLit(), 'select: clicking a thread selects it and lights up its element, without the panel');
+  check((await page.locator('main .box.flash').count()) === 1, 'actions: clicking a thread flashes the change');
+  await page.mouse.move(5, 450);
+  await page.waitForTimeout(200);
+  check(await boxLit(), 'select: the element stays lit after the pointer leaves');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  check(!(await selected()) && !(await boxLit()), 'select: Esc clears the selection');
+  await page.locator('main .box').first().click();
+  await page.waitForTimeout(500);
+  const replying = await page.evaluate((t) => document.activeElement === document.querySelector(`.margin .thread[data-key="${t}"] .tools textarea`), box.target);
+  check((await page.locator('.pop').count()) === 0 && await page.locator('.sheet').isVisible() && await selected() && replying, 'select: clicking an element with a thread opens its sheet like any element, and selects the thread to reply in');
+  check(await card().locator('[data-a=open-info], [data-a=open-code]').evaluateAll((els) => els.every((el) => !el.checkVisibility())), 'select: a margin thread has no Info or Code buttons, since its element opens them');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  const step = await page.evaluate(() => {
+    const el = document.querySelector('main .step');
+    return { target: el.dataset.ct, line: Number(el.dataset.line) };
+  });
+  await postComments(url, [{ id: 'act2', ...step, text: 'which file?' }]);
+  editBody(dir, '<td>Deleted in step 3</td>', '<td>Deleted in step 3, see step 1</td>');
+  replyTo(dir, 'act2', 'Noted in the table.');
+  await page.waitForTimeout(2600);
+  await page.evaluate(() => document.querySelector('main .step').scrollIntoView({ block: 'center' }));
+  await page.waitForTimeout(300);
+  await page.locator(`.margin .thread[data-key="${step.target}"]`).hover();
+  await page.locator(`.margin .thread[data-key="${step.target}"] [data-a=show]`).click();
+  await page.waitForTimeout(900);
+  check(await inView(page, 'table.files tr:last-child'), 'actions: Show change scrolls to what the reply changed');
+  await page.close();
+  page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(url);
+  await page.waitForTimeout(1500);
+  const badge = page.locator('.tbadge').first();
+  await badge.scrollIntoViewIfNeeded();
+  await badge.click();
+  await page.waitForTimeout(800);
+  check(await page.locator('.panel.open').isVisible() && (await page.locator('.panel .thread-item').count()) === 1 && await page.locator('.panel .general').isHidden(), '390px: a thread counter opens the panel on that thread alone');
+  await page.locator('.panel .back').click();
+  await page.waitForTimeout(300);
+  check((await page.locator('.panel .thread-item').count()) >= 2, '390px: All comments goes back to every thread');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(600);
+  await page.locator('main .box').first().click();
+  await page.waitForTimeout(800);
+  check(await page.locator('.panel.open').isVisible() && (await page.locator(`.panel .thread-item[data-key="${box.target}"]`).count()) === 1 && (await page.locator('.panel .thread-item').count()) === 1, '390px: tapping an element with a thread opens that thread');
+  await page.locator('.panel .thread-item textarea').fill('from the panel');
+  await page.locator('.panel .thread-item [data-a=send]').click();
+  await page.waitForTimeout(700);
+  check(pendingLines(dir).includes(`[${box.target}] "↩ Tightened." :: from the panel`), '390px: a reply typed in the panel continues the thread');
+  await page.close();
+  resetPage(dir);
+}
+
+async function checkOffscreen(browser, url, dir) {
+  resetPage(dir);
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const last = await page.evaluate(() => {
+    const el = document.querySelector('table.files tr:last-child');
+    return { target: el.dataset.ct, line: Number(el.dataset.line) };
+  });
+  await postComments(url, [{ id: 'off1', ...last, text: 'x' }, { id: 'off2', ...last, text: 'y' }]);
+  await page.evaluate(() => scrollTo(0, 0));
+  editBody(dir, '<td>New middleware</td>', '<td>New cookie middleware</td>');
+  replyTo(dir, 'off1', 'done');
+  await page.waitForTimeout(2600);
+  check(((await page.locator('.offscreen-note.below').textContent()) ?? '').includes('1 new reply below'), 'offscreen: a reply out of view is announced below');
+  check((await page.locator('main .delta').count()) === 1 && (await page.title()).startsWith('(1)'), 'offscreen: an unseen reply keeps its outline and the title count');
+  await page.locator('.offscreen-note.below').click();
+  await page.waitForTimeout(2500);
+  check(await page.locator('.offscreen-note.below').isHidden(), 'offscreen: the notice clears once the reply is seen');
+  check((await page.locator('main .delta').count()) === 0, 'offscreen: the outline clears once seen');
+  check(!(await page.title()).startsWith('('), 'offscreen: the title count clears once seen');
+  const card = page.locator(`.margin .thread[data-key="${last.target}"]`);
+  await card.hover();
+  await card.locator('[data-a=fold]').click();
+  await page.waitForTimeout(400);
+  replyTo(dir, 'off2', 'also done');
+  await page.waitForTimeout(2600);
+  check(!(await card.getAttribute('class')).includes('folded'), 'offscreen: a new reply unfolds a folded thread');
+  const inner = await page.evaluate(() => {
+    const el = document.querySelector('main aside.more p');
+    return { target: el.dataset.ct, line: Number(el.dataset.line) };
+  });
+  await postComments(url, [{ id: 'aside1', ...inner, text: 'more?' }]);
+  await page.waitForTimeout(2600);
+  const owner = await page.evaluate(() => document.querySelector('tr[data-c="cookie.ts"]').dataset.ct);
+  check((await linkedTo(page, inner.target)).join('|') === owner, 'margin: a comment inside an expansion sits beside the element the expansion belongs to');
+  await page.close();
+  resetPage(dir);
+}
+
+async function checkExpand(browser, url, dir) {
+  resetPage(dir);
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const target = await page.evaluate(() => document.querySelector('main .box').dataset.ct);
+  await page.locator('main .box').first().click();
+  await page.waitForTimeout(400);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  await page.locator('.sheet .ask textarea').fill('why this order?');
+  await page.locator('.sheet .ask button').click();
+  await page.waitForTimeout(500);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  const id = (await state(url)).sent.find((c) => c.kind === 'expand').id;
+  editBody(dir, '<div class="box"><b>Login form</b><small>POST /login</small></div>', '<div class="box"><b>Login form</b><small>POST /login</small></div><aside class="more"><p>Order matters.</p></aside>');
+  replyTo(dir, id, 'Added to Info for Login form');
+  await page.waitForTimeout(2600);
+  const card = page.locator(`.margin .thread[data-key="${target}"]`);
+  check((await card.locator('.msg.me').textContent()).includes('why this order?') && await card.locator('[data-a=info]').isVisible(), 'expand: the question opens a thread whose reply offers Show in Info');
+  await card.locator('[data-a=info]').click();
+  await page.waitForTimeout(800);
+  const sheet = await page.evaluate(() => {
+    const asked = document.querySelector('.sheet-body .asked');
+    const aside = document.querySelector('.sheet-body aside.more');
+    return { open: !document.querySelector('.sheet').hidden, asked: asked?.textContent ?? '', before: Boolean(asked && aside && asked.compareDocumentPosition(aside) & Node.DOCUMENT_POSITION_FOLLOWING) };
+  });
+  check(sheet.open && sheet.asked.includes('why this order?') && sheet.before, 'expand: the Info tab shows the question above the expansion');
+  await page.close();
+  resetPage(dir);
+}
+
+async function cardBesideStep(page, key) {
+  if (!(await page.locator(`.margin .thread[data-key="${key}"]`).count())) {
+    return false;
+  }
+  await linkedTo(page, key);
+  return page.evaluate((k) => {
+    const card = [...document.querySelectorAll('.margin .thread')].find((el) => el.dataset.key === k);
+    const step = document.querySelector('main .step');
+    return step.classList.contains('linked') && Math.abs(card.getBoundingClientRect().top - step.getBoundingClientRect().top) < 40;
+  }, key);
+}
+
+async function checkReviewFixes(browser, url, dir) {
+  resetPage(dir);
+  let page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const step = await page.evaluate(() => {
+    const el = document.querySelector('main .step');
+    return { target: el.dataset.ct, line: Number(el.dataset.line) };
+  });
+  await postComments(url, [{ id: 'fx1', ...step, text: 'rename' }]);
+  editBody(dir, 'Add cookie middleware beside bearer auth', 'Add the cookie middleware');
+  replyTo(dir, 'fx1', 'Renamed.');
+  await page.waitForTimeout(2600);
+  await postComments(url, [{ id: 'fx2', ...step, text: 'thanks' }]);
+  replyTo(dir, 'fx2', 'You are welcome.');
+  await page.waitForTimeout(2600);
+  check(await cardBesideStep(page, step.target), 'fixes: a renamed element keeps its thread after a follow-up with no edit');
+  await postComments(url, [{ id: 'fx4', kind: 'approve', target: 'document', line: null, text: '', version: 'x' }]);
+  replyTo(dir, 'fx4', 'Approved — next: step 1');
+  await page.waitForTimeout(3500);
+  check(await page.evaluate(() => JSON.parse(localStorage.getItem('explainer:example:seen')).includes('fx4')), 'fixes: an approval reply does not leave an unread count');
+  await page.locator('#list').click();
+  await page.waitForTimeout(700);
+  check((await page.locator('.panel .list').textContent()).includes('Approved — next: step 1'), 'fixes: the approval reply shows in the panel');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  await postComments(url, [{ id: 'fx3', target: 'Steps › Login sets the cookie', line: step.line + 1, text: 'and this one?' }]);
+  editBody(dir, '<h2>Steps</h2>', '<h2>Rollout steps</h2>');
+  await page.waitForTimeout(2600);
+  await linkedTo(page, 'Steps › Login sets the cookie');
+  check(await page.evaluate(() => document.querySelectorAll('main .step')[1].classList.contains('linked')), 'fixes: a thread stays beside its element after its section is renamed');
+  await page.mouse.move(5, 450);
+  await page.locator('.qcard textarea').click();
+  await page.keyboard.type('abc');
+  editBody(dir, '<p class="lede">', '<p class="lede">Again. ');
+  await page.waitForTimeout(2600);
+  await page.keyboard.type('def');
+  check((await page.locator('.qcard textarea').inputValue()) === 'abcdef', 'fixes: typing in a question survives a body change');
+  await page.locator('.qcard textarea').fill('');
+  await page.evaluate(() => document.querySelector('main .box').scrollIntoView({ block: 'center' }));
+  await page.locator('main .box').first().click();
+  await page.waitForTimeout(400);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  await page.locator('.sheet .ask textarea').click();
+  await page.keyboard.type('abc');
+  editBody(dir, '<p class="lede">', '<p class="lede">More. ');
+  await page.waitForTimeout(2600);
+  await page.keyboard.type('def');
+  check((await page.locator('.sheet .ask textarea').inputValue()) === 'abcdef', 'fixes: typing in the Info sheet survives a body change');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  const steps = page.locator('main .step').nth(2);
+  await steps.click();
+  await page.waitForTimeout(400);
+  await page.locator('.pop textarea').fill('where?');
+  editBody(dir, '<h2>Rollout steps</h2>', '<h2>Rollout steps</h2>\n<p>Shifted.</p>');
+  await page.waitForTimeout(2600);
+  const now = await steps.getAttribute('data-line');
+  await page.locator('.pop [data-a=send]').click();
+  await page.waitForTimeout(600);
+  check((await state(url)).sent.find((c) => c.text === 'where?')?.line === Number(now), 'fixes: a comment sent after its section moved carries the current line');
+  check(await page.locator('.sheet').isVisible() && await page.locator('.margin').isVisible(), 'fixes: with room, the sheet stays open beside the margin after a send');
+  const card = page.locator(`.margin .thread[data-key="${step.target}"]`);
+  const text = await card.locator('.msg.claude .text').last().boundingBox();
+  await page.mouse.move(text.x + 2, text.y + 6);
+  await page.mouse.down();
+  await page.mouse.move(text.x + 60, text.y + 6, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForTimeout(600);
+  check(await page.locator('.panel').isHidden(), 'fixes: selecting text in a thread does not open the panel');
+  await page.close();
+  page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(url);
+  await page.waitForTimeout(1500);
+  await postComments(url, [{ id: 'fx5', target: 'document', line: null, text: 'overall?' }]);
+  replyTo(dir, 'fx5', 'Overall fine.');
+  await page.waitForTimeout(2600);
+  check((await page.title()).startsWith('(1)'), '390px: a general reply counts as unread');
+  await page.locator('#list').click();
+  await page.waitForTimeout(2500);
+  check(!(await page.title()).startsWith('('), '390px: opening the panel on a general reply marks it read');
+  await page.close();
+  resetPage(dir);
+}
+
 async function checkRemote(dir) {
   const { child, found } = await startServer(dir, { port: '4891', extra: ['--remote', 'tunnel'], until: /remote: (\S+)/ });
   try {
@@ -406,6 +974,222 @@ async function checkUpdate(browser, dir) {
   }
 }
 
+const legendOf = (page, sel) => page.evaluate((s) => [...document.querySelectorAll(`${s} .legend`)].map((l) => [...l.children].map((c) => c.className).join(',')), sel);
+
+async function checkTransitions(browser, url) {
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  await page.locator('main .box').first().click();
+  await page.waitForTimeout(1500);
+  const left = await page.evaluate(() => [...document.documentElement.classList].filter((c) => c.startsWith('vt-')));
+  check(left.length === 0, `transitions: opening a comment beside the sheet leaves no transition class behind (${left})`);
+  await page.close();
+}
+
+async function checkCodexFindings(browser, url, dir) {
+  resetPage(dir);
+  const file = path.join(dir, 'example.body.html');
+  const questions = fs.readFileSync(file, 'utf8').match(/^<div class="q" id="[^"]+">[\s\S]*?^<\/div>\n/gm);
+  fs.writeFileSync(file, questions.reduce((body, q) => body.replace(q, ''), fs.readFileSync(file, 'utf8')));
+  editBody(dir, '<p class="lede">', '<p class="lede">');
+  let page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const lede = fs.readFileSync(file, 'utf8').match(/<p class="lede">[\s\S]*?<\/p>\n/)[0];
+  editBody(dir, lede, `${lede}${questions.at(-1)}`);
+  await page.waitForTimeout(3000);
+  check(await page.locator('.qzone .qcard').isVisible() && (await page.locator('.qcard .qhead span').textContent()) === 'Question 1 of 1', 'questions: a question added by an edit shows on a page that had none');
+  await page.close();
+  resetPage(dir);
+  page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const box = await page.evaluate(() => {
+    const el = document.querySelector('main .box');
+    return { target: el.dataset.ct, line: Number(el.dataset.line) };
+  });
+  await postComments(url, [{ id: 'cx1', ...box, text: 'here' }]);
+  replyTo(dir, 'cx1', 'noted');
+  await page.waitForTimeout(2600);
+  editBody(dir, '<small>POST /login</small>', '<small>POST /signin</small>');
+  await page.waitForTimeout(3000);
+  const place = await page.evaluate(() => {
+    const badge = document.querySelector('.tbadge').getBoundingClientRect();
+    const el = document.querySelector('main .box').getBoundingClientRect();
+    return Math.round(Math.abs(badge.top + 11 - el.top));
+  });
+  check(place < 4, `badges: a thread counter stays on its element after an edit replaces it (${place}px off)`);
+  await page.close();
+  resetPage(dir);
+}
+
+async function checkLegend(browser, url, dir) {
+  resetPage(dir);
+  editBody(dir, '<div class="box"><b>Login form</b>', '<div class="box focus"><b>Login form</b>');
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  check((await legendOf(page, '#after')).join('|') === 'new,changed,removed', 'legend: colours without a legend get one naming exactly the states used');
+  check((await legendOf(page, '#today')).join('|') === 'focus', 'legend: focus has its own legend entry');
+  for (const scheme of ['light', 'dark']) {
+    await page.emulateMedia({ colorScheme: scheme });
+    const borders = await page.evaluate(() => ['new', 'changed', 'removed', 'focus'].map((k) => getComputedStyle(document.querySelector(`main .box.${k}`)).borderTopColor));
+    check(new Set(borders).size === 4, `legend: the four states have four different colours in ${scheme} mode`);
+  }
+  resetPage(dir);
+  editBody(dir, '<div class="cols">', '<div class="legend"><span class="new">new</span></div>\n  <div class="cols">');
+  await page.reload();
+  await page.waitForTimeout(1200);
+  check((await legendOf(page, '#after')).join('|') === 'new', 'legend: a legend the body writes is not doubled');
+  await page.close();
+  const shell = fs.readFileSync(path.join(here, 'shell.html'), 'utf8');
+  const states = shell.match(/^\s*--(new|changed|removed)(-soft)?:.*$/gm) ?? [];
+  check(states.length === 6 && states.every((l) => !l.includes('#')), 'palette: state colours are derived from the palette, not hand-picked');
+}
+
+const FIGURE = '<figure data-c="Sequence"><svg viewBox="0 0 300 90" aria-label="Sequence"><rect class="lane" x="0" y="0" width="300" height="40"/><rect class="node changed" x="10" y="5" width="80" height="30"/><path class="edge arrow" d="M90 20 H200"/><text class="label" x="10" y="70">time</text><g data-c="Gate"><rect class="node" x="210" y="5" width="80" height="30"/></g></svg></figure><aside class="more" data-for="Gate"><p>Why the gate.</p></aside>';
+
+async function checkDrawing(browser, url, dir) {
+  resetPage(dir);
+  editBody(dir, '<h2>How a request is authenticated today</h2>', `<h2>How a request is authenticated today</h2>\n  ${FIGURE}`);
+  editBody(dir, '<li><b>Size</b>3 files, one migration step, no schema change.</li>', '<li><b>Size</b>3 files, one migration step, no schema change.</li>\n  <li><b>Risk</b>Low.</li>');
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1200);
+  const rows = await page.evaluate(() => new Set([...document.querySelectorAll('.tldr li')].map((li) => Math.round(li.getBoundingClientRect().top))).size);
+  check(rows === 1, `layout: four tldr items share one row on a wide screen (${rows} rows)`);
+  const drawn = await page.evaluate(() => {
+    const fig = document.querySelector('#today figure');
+    const marker = getComputedStyle(fig.querySelector('.edge.arrow')).markerEnd;
+    const id = marker.match(/#([\w-]+)/)?.[1];
+    return {
+      arrow: Boolean(id && document.getElementById(id)?.tagName === 'marker'),
+      fill: getComputedStyle(fig.querySelector('.node.changed')).fill,
+      box: getComputedStyle(document.querySelector('main .box.changed')).backgroundColor,
+      legend: fig.previousElementSibling?.matches('.legend') ? fig.previousElementSibling.textContent : null,
+    };
+  });
+  check(drawn.arrow, 'drawing: an arrow edge gets the shell arrowhead');
+  check(drawn.fill === drawn.box, 'drawing: a state class fills an SVG node with its state colour');
+  check(drawn.legend === 'changed', 'legend: a figure with coloured nodes gets a legend above it');
+  check(await page.locator('#today figure [data-c="Gate"] .ibadge').isVisible(), 'drawing: an SVG part with an expansion shows the i badge');
+  const contrast = () => page.evaluate(() => {
+    const rgb = (css) => {
+      const ctx = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d');
+      ctx.fillStyle = css;
+      ctx.fillRect(0, 0, 1, 1);
+      return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map((v) => {
+        const c = v / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+    };
+    const lum = (css) => rgb(css).reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+    const probe = document.createElement('div');
+    document.body.append(probe);
+    const resolve = (v) => {
+      probe.style.color = `var(${v})`;
+      return getComputedStyle(probe).color;
+    };
+    const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+    const fg = resolve('--fg');
+    const worst = Math.min(...['flame', 'truffle', 'blue-fantastic'].flatMap((h) => [100, 200].map((n) => ratio(fg, resolve(`--${h}-${n}`)))));
+    probe.remove();
+    return worst;
+  });
+  const light = await contrast();
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const dark = await contrast();
+  check(light >= 4.5 && dark >= 4.5, `palette: text reads on the light steps (100, 200) in both themes (${light.toFixed(1)}, ${dark.toFixed(1)})`);
+  await page.close();
+  resetPage(dir);
+  const shell = fs.readFileSync(path.join(here, 'shell.html'), 'utf8');
+  const steps = ['flame', 'truffle', 'blue-fantastic'].flatMap((hue) => [100, 200, 300, 400, 600, 700, 800, 900].map((n) => `--${hue}-${n}:`));
+  check(steps.every((t) => shell.includes(t)), 'palette: every hue has its 100-900 steps for drawings');
+}
+
+const LIVE = `<figure class="live" data-c="Spin"><script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+export default (el, { palette }) => {
+  el.dataset.rev = THREE.REVISION;
+  el.dataset.orbit = typeof OrbitControls;
+  el.dataset.fg = palette.fg;
+  el.insertAdjacentHTML('beforeend', "<b class='marked'>x</b>");
+  window.liveMounts = (window.liveMounts ?? 0) + 1;
+  return () => { window.liveCleanups = (window.liveCleanups ?? 0) + 1; };
+};
+</script><figcaption>Spins.</figcaption></figure>`;
+
+async function checkLive(browser, url, dir) {
+  resetPage(dir);
+  editBody(dir, '<h2>How a request is authenticated today</h2>', `<h2>How a request is authenticated today</h2>\n  ${LIVE}`);
+  const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(1500);
+  const stage = page.locator('#today figure.live .live-stage');
+  const fg = () => page.evaluate(() => {
+    const ctx = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d');
+    ctx.fillStyle = getComputedStyle(document.body).color;
+    ctx.fillRect(0, 0, 1, 1);
+    return `#${[...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+  });
+  check((await stage.getAttribute('data-rev')) === '168' && (await stage.getAttribute('data-orbit')) === 'function', 'live: a live figure runs its module with three.js and its addons');
+  check((await stage.getAttribute('data-fg')) === await fg(), 'live: the module gets the page palette as hex');
+  check((await stage.locator('b.marked').count()) === 1, 'live: markup in a module string is left as written, not stamped with source lines');
+  await stage.click();
+  await page.waitForTimeout(500);
+  check((await page.locator('.pop').count()) === 0 && await page.locator('.sheet').isHidden(), 'live: clicking inside a live figure does not open a comment or the sheet');
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.waitForTimeout(500);
+  const counts = () => page.evaluate(() => [window.liveMounts, window.liveCleanups ?? 0]);
+  check(JSON.stringify(await counts()) === '[2,1]' && (await stage.getAttribute('data-fg')) === await fg(), 'live: a theme change cleans up and remounts with the new palette');
+  await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
+  await page.waitForTimeout(500);
+  check(JSON.stringify(await counts()) === '[3,2]', 'live: a change in reduced motion remounts the figure');
+  editBody(dir, '<figcaption>Spins.</figcaption>', '<figcaption>Spins slowly.</figcaption>');
+  await page.waitForTimeout(3000);
+  check(JSON.stringify(await counts()) === '[4,3]' && (await page.locator('#today figure.live .live-stage').getAttribute('data-rev')) === '168', 'live: an edit cleans up the old figure and mounts the new one');
+  await page.close();
+  const out = path.join(dir, 'live-export.html');
+  execFileSync(process.execPath, [path.join(here, 'serve.mjs'), 'example', '--dir', dir, '--export', out]);
+  const html = fs.readFileSync(out, 'utf8');
+  const offline = await browser.newPage();
+  await offline.goto(`file://${out}`);
+  await offline.waitForTimeout(1500);
+  check(!html.includes('/_vendor/') && (await offline.locator('figure.live .live-stage').getAttribute('data-rev')) === '168', 'export: a live figure runs offline with three.js inlined');
+  await offline.close();
+  resetPage(dir);
+  execFileSync(process.execPath, [path.join(here, 'serve.mjs'), 'example', '--dir', dir, '--export', out]);
+  check(!fs.readFileSync(out, 'utf8').includes('data:text/javascript'), 'export: a page without live figures carries no three.js');
+}
+
+// The showcase is what agents read to see each technique written out; it must keep rendering as the shell changes.
+async function checkShowcase() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'explainer-showcase-'));
+  const source = path.join(here, '..', 'showcase.body.html');
+  check(fs.existsSync(source), 'showcase: the skill ships a showcase page');
+  if (!fs.existsSync(source)) {
+    return;
+  }
+  fs.copyFileSync(source, path.join(dir, 'showcase.body.html'));
+  const { child, url } = await startServer(dir, { port: '4893' });
+  const browser = await launch(['--use-angle=swiftshader', '--enable-unsafe-swiftshader']);
+  try {
+    const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(new URL('../showcase/', url).href);
+    await page.waitForTimeout(2500);
+    const live = await page.evaluate(() => [...document.querySelectorAll('main figure.live .live-stage')].map((s) => (s.classList.contains('failed') ? s.textContent : s.childElementCount)));
+    check(live.length === 2 && live.every((n) => typeof n === 'number' && n > 0) && errors.length === 0, `showcase: every live figure mounts without errors (${JSON.stringify({ live, errors })})`);
+    check((await page.locator('main figure svg').count()) >= 5, 'showcase: the drawings render');
+  } finally {
+    await browser.close();
+    child.kill();
+  }
+}
+
 async function main() {
   check(cssBalanced(), 'shell.html: CSS braces balance');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'explainer-check-'));
@@ -422,6 +1206,21 @@ async function main() {
     await checkToc(browser, url);
     await checkExport(browser, dir);
     await checkServerGuards(url, dir);
+    await checkServerThreads(url, dir);
+    await checkLiveUpdate(browser, url, dir);
+    await checkMarginReply(browser, url, dir);
+    await checkMarginLayout(browser, url, dir);
+    await checkMarginMotion(browser, url, dir);
+    await checkThreadActions(browser, url, dir);
+    await checkOffscreen(browser, url, dir);
+    await checkExpand(browser, url, dir);
+    await checkReviewFixes(browser, url, dir);
+    await checkTransitions(browser, url);
+    await checkCodexFindings(browser, url, dir);
+    await checkLegend(browser, url, dir);
+    await checkDrawing(browser, url, dir);
+    await checkLive(browser, url, dir);
+    await checkShowcase();
     await checkRemote(dir);
     await checkUpdate(browser, dir);
   } finally {

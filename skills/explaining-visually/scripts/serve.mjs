@@ -96,10 +96,47 @@ function reply(id, text) {
   }
   const file = sidecar(slug, 'replies.json');
   const replies = readJson(file, {});
-  replies[id] = { text, at: new Date().toISOString() };
+  replies[id] = { text, at: new Date().toISOString(), changed: attributeReply(slug) };
   fs.writeFileSync(file, JSON.stringify(replies, null, 2));
   console.log(`replied to ${id} in ${slug}`);
 }
+
+const snapshotOf = (slug) => sidecar(slug, 'replied.html');
+
+function keepSnapshot(slug) {
+  if (!fs.existsSync(snapshotOf(slug))) {
+    fs.copyFileSync(bodyOf(slug), snapshotOf(slug));
+  }
+}
+
+// The body as of the last reply: every line that changed since belongs to this reply.
+function attributeReply(slug) {
+  const current = fs.readFileSync(bodyOf(slug), 'utf8');
+  const previous = fs.existsSync(snapshotOf(slug)) ? fs.readFileSync(snapshotOf(slug), 'utf8') : current;
+  fs.writeFileSync(snapshotOf(slug), current);
+  const lines = current.split('\n');
+  return changedLines(previous, current).map((n) => ({ text: lines[n - 1], line: n }));
+}
+
+// Lines are stored by content and position, so they still point at the right place after later edits move them;
+// a repeated line like `<div class="col">` resolves to the copy nearest where it was.
+function locateLines(body, entries) {
+  const at = new Map();
+  body.split('\n').forEach((line, i) => at.set(line, [...(at.get(line) ?? []), i + 1]));
+  return entries.flatMap((entry) => {
+    const { text, line } = typeof entry === 'string' ? { text: entry, line: 0 } : entry;
+    const spots = at.get(text);
+    if (!spots?.length) {
+      return [];
+    }
+    const best = spots.reduce((a, b) => (Math.abs(b - line) < Math.abs(a - line) ? b : a));
+    spots.splice(spots.indexOf(best), 1);
+    return [best];
+  });
+}
+
+const replyView = (r, body) => (r ? { text: r.text, at: r.at, lines: locateLines(body, r.changed ?? []) } : null);
+const lineNow = (c, body) => (c.lineText ? locateLines(body, [{ text: c.lineText, line: Number(c.line) || 0 }])[0] ?? null : null);
 
 function pending() {
   const lines = slugs().flatMap((slug) => {
@@ -117,7 +154,9 @@ function watch() {
       const all = readComments(slug);
       const cursor = sidecar(slug, 'cursor');
       const seen = Number(readJson(cursor, 0));
-      all.slice(seen).forEach((c) => console.log(oneLine(slug, c)));
+      // Replies written while no watcher ran (the --pending pass) already answered these.
+      const replies = readJson(sidecar(slug, 'replies.json'), {});
+      all.slice(seen).filter((c) => !replies[c.id]).forEach((c) => console.log(oneLine(slug, c)));
       if (all.length > seen) {
         fs.writeFileSync(cursor, String(all.length));
       }
@@ -143,16 +182,30 @@ function exportPage(out) {
   }
   // A standalone copy has no server behind it, so the fonts travel inside it.
   const inlineFont = (_, file) => `url("data:font/woff2;base64,${fs.readFileSync(new URL(`./fonts/${file}`, import.meta.url)).toString('base64')}")`;
-  const page = render(targetSlug, fs.readFileSync(bodyOf(targetSlug), 'utf8')).replace(/url\("\/_fonts\/([\w-]+\.woff2)"\)/g, inlineFont);
+  const body = fs.readFileSync(bodyOf(targetSlug), 'utf8');
+  // three.js travels only with a page that has a live figure; it is most of an export's size.
+  const live = /<figure[^>]*class="[^"]*\blive\b/.test(body);
+  const inlineScript = (whole, file) => (live ? `"data:text/javascript;base64,${fs.readFileSync(new URL(`./vendor/${file}`, import.meta.url)).toString('base64')}"` : whole);
+  const page = render(targetSlug, body).replace(/url\("\/_fonts\/([\w-]+\.woff2)"\)/g, inlineFont).replace(/"\/_vendor\/([\w.-]+\.js)"/g, inlineScript);
   fs.writeFileSync(out, page);
   console.log(`exported ${out}`);
 }
 
+// A script's source is code, not markup: only its opening tag gets a line, and its contents are left as written.
 function withSourceLines(body) {
-  return body
-    .split('\n')
-    .map((line, i) => line.replace(/<([a-zA-Z][\w-]*)(?=[\s>/])/g, `<$1 data-line="${i + 1}"`))
-    .join('\n');
+  let line = 1;
+  return body.replace(/<script\b[^>]*>[\s\S]*?<\/script>|<([a-zA-Z][\w-]*)(?=[\s>/])|\n/g, (match, tag) => {
+    if (match === '\n') {
+      line += 1;
+      return match;
+    }
+    if (tag) {
+      return `<${tag} data-line="${line}"`;
+    }
+    const opened = match.replace(/^<script/, `<script data-line="${line}"`);
+    line += match.split('\n').length - 1;
+    return opened;
+  });
 }
 
 const titleOf = (slug, body) => {
@@ -260,14 +313,7 @@ function codeFinder() {
 }
 
 function pageStore() {
-  const pages = new Map();
-  const refresh = (slug) => {
-    const page = pages.get(slug) ?? { versions: new Map(), current: '' };
-    page.current = fs.readFileSync(bodyOf(slug), 'utf8');
-    page.versions.set(String(fs.statSync(bodyOf(slug)).mtimeMs), page.current);
-    pages.set(slug, page);
-    return page;
-  };
+  const refresh = (slug) => ({ current: fs.readFileSync(bodyOf(slug), 'utf8') });
   const fresh = (file) => {
     try {
       return Date.now() - fs.statSync(file).mtimeMs < HEARTBEAT_MS * 3;
@@ -276,15 +322,14 @@ function pageStore() {
     }
   };
   const isWatched = (slug) => fresh(heartbeat(slug)) || fresh(heartbeat(null));
-  // Changed lines are relative to the version the tab last showed, however many saves ago.
-  const state = (slug, since) => {
-    const page = refresh(slug);
+  const state = (slug) => {
+    const { current } = refresh(slug);
     const replies = readJson(sidecar(slug, 'replies.json'), {});
     return {
       v: String(fs.statSync(bodyOf(slug)).mtimeMs),
       listening: isWatched(slug),
-      changed: page.versions.has(since) ? changedLines(page.versions.get(since), page.current) : [],
-      sent: readComments(slug).map((c) => ({ ...c, reply: replies[c.id] ?? null })),
+      sent: readComments(slug).map((c) => ({ ...c, now: lineNow(c, current), reply: replyView(replies[c.id], current) })),
+      resolved: readJson(sidecar(slug, 'resolved.json'), {}),
     };
   };
   return { refresh, state };
@@ -470,7 +515,7 @@ function serve() {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
     res.end(body);
   };
-  const receive = (slug, req, res) => {
+  const readBody = (req, res, use) => {
     let raw = '';
     req.on('data', (chunk) => {
       raw += chunk;
@@ -480,15 +525,35 @@ function serve() {
     });
     req.on('end', () => {
       try {
-        const sentAt = new Date().toISOString();
-        const lines = (JSON.parse(raw).comments ?? []).map((c) => JSON.stringify({ sentAt, ...c }));
-        fs.appendFileSync(sidecar(slug, 'comments.jsonl'), `${lines.join('\n')}\n`);
-        json(res, { ok: true, count: lines.length });
+        json(res, use(JSON.parse(raw)));
       } catch (err) {
         json(res, { ok: false, error: String(err) }, 400);
       }
     });
   };
+  const receive = (slug, req, res) => readBody(req, res, (data) => {
+    const sentAt = new Date().toISOString();
+    const body = fs.readFileSync(bodyOf(slug), 'utf8').split('\n');
+    const lineText = (c) => (Number(c.line) > 0 ? body[Number(c.line) - 1] : undefined);
+    const lines = (data.comments ?? []).map((c) => JSON.stringify({ sentAt, lineText: lineText(c), ...c }));
+    keepSnapshot(slug);
+    fs.appendFileSync(sidecar(slug, 'comments.jsonl'), `${lines.join('\n')}\n`);
+    return { ok: true, count: lines.length };
+  });
+  const resolveThread = (slug, req, res) => readBody(req, res, ({ target, resolved }) => {
+    if (typeof target !== 'string' || !target) {
+      throw new Error('target is required');
+    }
+    const file = sidecar(slug, 'resolved.json');
+    const all = readJson(file, {});
+    if (resolved) {
+      all[target] = new Date().toISOString();
+    } else {
+      delete all[target];
+    }
+    fs.writeFileSync(file, JSON.stringify(all, null, 2));
+    return { ok: true };
+  });
 
   const routePage = (slug, rest, req, res) => {
     if (rest === '' && req.method === 'GET') {
@@ -503,12 +568,15 @@ function serve() {
     if (rest === '/state' && req.method === 'GET') {
       lastPoll = Date.now();
       polledAt[slug] = lastPoll;
-      const since = new URL(req.url, 'http://x').searchParams.get('since');
-      json(res, { ...store.state(slug, since), version: updates.version, update: updates.available(), canUpdate: isLocal(req) });
+      json(res, { ...store.state(slug), version: updates.version, update: updates.available(), canUpdate: isLocal(req) });
       return;
     }
     if (rest === '/comments' && req.method === 'POST') {
       receive(slug, req, res);
+      return;
+    }
+    if (rest === '/resolve' && req.method === 'POST') {
+      resolveThread(slug, req, res);
       return;
     }
     res.writeHead(404);
@@ -533,6 +601,12 @@ function serve() {
     if (font && fs.existsSync(new URL(`./fonts/${font}`, import.meta.url))) {
       res.writeHead(200, { 'content-type': 'font/woff2', 'cache-control': 'max-age=86400' });
       res.end(fs.readFileSync(new URL(`./fonts/${font}`, import.meta.url)));
+      return;
+    }
+    const vendored = pathname.match(/^\/_vendor\/([\w.-]+\.js)$/)?.[1];
+    if (vendored && fs.existsSync(new URL(`./vendor/${vendored}`, import.meta.url))) {
+      res.writeHead(200, { 'content-type': 'text/javascript', 'cache-control': 'max-age=86400' });
+      res.end(fs.readFileSync(new URL(`./vendor/${vendored}`, import.meta.url)));
       return;
     }
     if (pathname === '/code') {
