@@ -2,7 +2,10 @@
   "private": true,
   "type": "module",
   "version": "1.3.0",
-  "description": "version and repository drive the update check in serve.mjs; only check.mjs needs the dependencies.",
+  "description": "version and repository drive the update check in serve.mjs; only the tests need the dependencies.",
+  "scripts": {
+    "test": "node test/run.mjs"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/rodlandA/claude-workflow-kit",
