@@ -989,7 +989,7 @@ async function checkLegend(browser, url, dir) {
   check(states.length === 6 && states.every((l) => !l.includes('#')), 'palette: state colours are derived from the palette, not hand-picked');
 }
 
-const FIGURE = '<figure data-c="Sequence"><svg viewBox="0 0 300 90" aria-label="Sequence"><rect class="lane" x="0" y="0" width="300" height="40"/><rect class="node changed" x="10" y="5" width="80" height="30"/><path class="edge arrow" d="M90 20 H200"/><text class="label" x="10" y="70">time</text></svg></figure>';
+const FIGURE = '<figure data-c="Sequence"><svg viewBox="0 0 300 90" aria-label="Sequence"><rect class="lane" x="0" y="0" width="300" height="40"/><rect class="node changed" x="10" y="5" width="80" height="30"/><path class="edge arrow" d="M90 20 H200"/><text class="label" x="10" y="70">time</text><g data-c="Gate"><rect class="node" x="210" y="5" width="80" height="30"/></g></svg></figure><aside class="more" data-for="Gate"><p>Why the gate.</p></aside>';
 
 async function checkDrawing(browser, url, dir) {
   resetPage(dir);
@@ -1011,6 +1011,34 @@ async function checkDrawing(browser, url, dir) {
   check(drawn.arrow, 'drawing: an arrow edge gets the shell arrowhead');
   check(drawn.fill === drawn.box, 'drawing: a state class fills an SVG node with its state colour');
   check(drawn.legend === 'changed', 'legend: a figure with coloured nodes gets a legend above it');
+  check(await page.locator('#today figure [data-c="Gate"] .ibadge').isVisible(), 'drawing: an SVG part with an expansion shows the i badge');
+  const contrast = () => page.evaluate(() => {
+    const rgb = (css) => {
+      const ctx = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d');
+      ctx.fillStyle = css;
+      ctx.fillRect(0, 0, 1, 1);
+      return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3).map((v) => {
+        const c = v / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+    };
+    const lum = (css) => rgb(css).reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+    const probe = document.createElement('div');
+    document.body.append(probe);
+    const resolve = (v) => {
+      probe.style.color = `var(${v})`;
+      return getComputedStyle(probe).color;
+    };
+    const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+    const fg = resolve('--fg');
+    const worst = Math.min(...['flame', 'truffle', 'blue-fantastic'].flatMap((h) => [100, 200].map((n) => ratio(fg, resolve(`--${h}-${n}`)))));
+    probe.remove();
+    return worst;
+  });
+  const light = await contrast();
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const dark = await contrast();
+  check(light >= 4.5 && dark >= 4.5, `palette: text reads on the light steps (100, 200) in both themes (${light.toFixed(1)}, ${dark.toFixed(1)})`);
   await page.close();
   resetPage(dir);
   const shell = fs.readFileSync(path.join(here, 'shell.html'), 'utf8');

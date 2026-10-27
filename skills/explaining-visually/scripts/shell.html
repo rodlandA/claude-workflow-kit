@@ -22,37 +22,38 @@
   --on-accent: light-dark(#eee9df, #1b2632);
   --flame: #ffb162; --on-flame: #1b2632;
   --truffle: #a35139; --blue-fantastic: #2c3b4d; --abyssal: #1b2632; --palladian: #eee9df;
-  /* Steps 100-400 mix the hue into Palladian (12/30/52/76%), 600-900 into Abyssal (76/52/30/12%). */
-  --flame-100: color-mix(in oklab, var(--flame) 12%, var(--palladian));
-  --flame-200: color-mix(in oklab, var(--flame) 30%, var(--palladian));
-  --flame-300: color-mix(in oklab, var(--flame) 52%, var(--palladian));
-  --flame-400: color-mix(in oklab, var(--flame) 76%, var(--palladian));
-  --flame-600: color-mix(in oklab, var(--flame) 76%, var(--abyssal));
-  --flame-700: color-mix(in oklab, var(--flame) 52%, var(--abyssal));
-  --flame-800: color-mix(in oklab, var(--flame) 30%, var(--abyssal));
-  --flame-900: color-mix(in oklab, var(--flame) 12%, var(--abyssal));
-  --truffle-100: color-mix(in oklab, var(--truffle) 12%, var(--palladian));
-  --truffle-200: color-mix(in oklab, var(--truffle) 30%, var(--palladian));
-  --truffle-300: color-mix(in oklab, var(--truffle) 52%, var(--palladian));
-  --truffle-400: color-mix(in oklab, var(--truffle) 76%, var(--palladian));
-  --truffle-600: color-mix(in oklab, var(--truffle) 76%, var(--abyssal));
-  --truffle-700: color-mix(in oklab, var(--truffle) 52%, var(--abyssal));
-  --truffle-800: color-mix(in oklab, var(--truffle) 30%, var(--abyssal));
-  --truffle-900: color-mix(in oklab, var(--truffle) 12%, var(--abyssal));
-  --blue-fantastic-100: color-mix(in oklab, var(--blue-fantastic) 12%, var(--palladian));
-  --blue-fantastic-200: color-mix(in oklab, var(--blue-fantastic) 30%, var(--palladian));
-  --blue-fantastic-300: color-mix(in oklab, var(--blue-fantastic) 52%, var(--palladian));
-  --blue-fantastic-400: color-mix(in oklab, var(--blue-fantastic) 76%, var(--palladian));
-  --blue-fantastic-600: color-mix(in oklab, var(--blue-fantastic) 76%, var(--abyssal));
-  --blue-fantastic-700: color-mix(in oklab, var(--blue-fantastic) 52%, var(--abyssal));
-  --blue-fantastic-800: color-mix(in oklab, var(--blue-fantastic) 30%, var(--abyssal));
-  --blue-fantastic-900: color-mix(in oklab, var(--blue-fantastic) 12%, var(--abyssal));
+  --paper: light-dark(var(--palladian), var(--abyssal)); --ink: light-dark(var(--abyssal), var(--palladian));
+  /* Steps 100-400 mix the hue into the page colour (12/30/52/76%), 600-900 into the text colour (76/52/30/12%), so 100 sits nearest the page in either theme. */
+  --flame-100: color-mix(in oklab, var(--flame) 12%, var(--paper));
+  --flame-200: color-mix(in oklab, var(--flame) 30%, var(--paper));
+  --flame-300: color-mix(in oklab, var(--flame) 52%, var(--paper));
+  --flame-400: color-mix(in oklab, var(--flame) 76%, var(--paper));
+  --flame-600: color-mix(in oklab, var(--flame) 76%, var(--ink));
+  --flame-700: color-mix(in oklab, var(--flame) 52%, var(--ink));
+  --flame-800: color-mix(in oklab, var(--flame) 30%, var(--ink));
+  --flame-900: color-mix(in oklab, var(--flame) 12%, var(--ink));
+  --truffle-100: color-mix(in oklab, var(--truffle) 12%, var(--paper));
+  --truffle-200: color-mix(in oklab, var(--truffle) 30%, var(--paper));
+  --truffle-300: color-mix(in oklab, var(--truffle) 52%, var(--paper));
+  --truffle-400: color-mix(in oklab, var(--truffle) 76%, var(--paper));
+  --truffle-600: color-mix(in oklab, var(--truffle) 76%, var(--ink));
+  --truffle-700: color-mix(in oklab, var(--truffle) 52%, var(--ink));
+  --truffle-800: color-mix(in oklab, var(--truffle) 30%, var(--ink));
+  --truffle-900: color-mix(in oklab, var(--truffle) 12%, var(--ink));
+  --blue-fantastic-100: color-mix(in oklab, var(--blue-fantastic) 12%, var(--paper));
+  --blue-fantastic-200: color-mix(in oklab, var(--blue-fantastic) 30%, var(--paper));
+  --blue-fantastic-300: color-mix(in oklab, var(--blue-fantastic) 52%, var(--paper));
+  --blue-fantastic-400: color-mix(in oklab, var(--blue-fantastic) 76%, var(--paper));
+  --blue-fantastic-600: color-mix(in oklab, var(--blue-fantastic) 76%, var(--ink));
+  --blue-fantastic-700: color-mix(in oklab, var(--blue-fantastic) 52%, var(--ink));
+  --blue-fantastic-800: color-mix(in oklab, var(--blue-fantastic) 30%, var(--ink));
+  --blue-fantastic-900: color-mix(in oklab, var(--blue-fantastic) 12%, var(--ink));
   --new: light-dark(var(--flame-600), var(--flame));
-  --new-soft: light-dark(var(--flame-100), var(--flame-800));
-  --changed: light-dark(var(--blue-fantastic), var(--blue-fantastic-200));
-  --changed-soft: light-dark(var(--blue-fantastic-100), var(--blue-fantastic-400));
-  --removed: light-dark(var(--truffle), var(--truffle-300));
-  --removed-soft: light-dark(var(--truffle-100), var(--truffle-800));
+  --new-soft: light-dark(var(--flame-100), var(--flame-200));
+  --changed: light-dark(var(--blue-fantastic), var(--blue-fantastic-800));
+  --changed-soft: light-dark(var(--blue-fantastic-100), var(--blue-fantastic-600));
+  --removed: light-dark(var(--truffle), var(--truffle-700));
+  --removed-soft: light-dark(var(--truffle-100), var(--truffle-200));
   --note: light-dark(#2c3b4d, #ffb162);
   --note-soft: light-dark(#dcdfe2, #4a3a2a);
   --on-note: light-dark(#eee9df, #1b2632);
@@ -194,6 +195,8 @@ details.qa .qa-item button { float: right; font-size: 12.5px; padding: 3px 10px;
 .has-more:not(tr, svg *) { position: relative; }
 .has-more:not(tr, svg *)::before { content: "i"; position: absolute; left: -7px; top: -7px; z-index: 1; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font: italic 700 11px/16px Georgia, serif; text-align: center; }
 tr.has-more > td:first-child { box-shadow: inset 3px 0 var(--accent); }
+.ibadge circle { fill: var(--accent); }
+.ibadge text { fill: var(--on-accent); font-family: Georgia, serif; font-style: italic; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
 .sheet-owner { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 figure { margin: 16px 0; }
@@ -903,7 +906,22 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
         mores.set(owner, aside);
         owner.classList.add('has-more');
       }
+      if (owner instanceof SVGGraphicsElement && owner.ownerSVGElement) {
+        drawInfoBadge(owner);
+      }
     });
+  }
+
+  // CSS cannot put the i badge on an SVG part, so it is drawn into the part at its top-left corner.
+  function drawInfoBadge(owner) {
+    const svg = owner.ownerSVGElement;
+    const box = owner.getBBox();
+    const shown = svg.getBoundingClientRect().width;
+    const scale = svg.viewBox.baseVal?.width && shown ? svg.viewBox.baseVal.width / shown : 1;
+    const badge = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    badge.setAttribute('class', 'ibadge');
+    badge.innerHTML = `<circle cx="${box.x}" cy="${box.y}" r="${8 * scale}"/><text x="${box.x}" y="${box.y}" font-size="${11 * scale}">i</text>`;
+    owner.append(badge);
   }
 
   const STATES = ['new', 'changed', 'removed', 'focus'];
@@ -1919,6 +1937,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     tagTargets();
     mores.clear();
     document.querySelectorAll('.has-more').forEach((el) => el.classList.remove('has-more'));
+    document.querySelectorAll('main .ibadge').forEach((el) => el.remove());
     collectMores();
     addLegends();
     addSectionButtons();
