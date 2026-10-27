@@ -375,6 +375,7 @@ nav.toc a .loader { width: 10px; height: 10px; margin-left: 6px; vertical-align:
 .thread:hover .actions, .thread:focus-within .actions { opacity: 1; }
 .thread .actions button { border: 0; border-radius: 99px; padding: 2px 8px; font-size: 11.5px; background: none; }
 .thread .actions button:hover { background: var(--accent-soft); color: var(--accent); }
+.thread .actions :is([data-a=open-info], [data-a=open-code]) { display: none; }
 :is(.thread, .thread-item.focus) textarea { display: block; width: 100%; min-height: 30px; max-height: 160px; field-sizing: content; resize: none; font: inherit; font-size: 13px; border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: var(--bg); color: var(--fg); }
 .thread .tools .row { display: flex; justify-content: flex-end; gap: 6px; max-height: 0; margin: 0 -3px; padding: 0 3px; overflow: hidden; opacity: 0; visibility: hidden; transition: max-height .3s cubic-bezier(.2, .8, .2, 1), margin .3s cubic-bezier(.2, .8, .2, 1), padding .3s cubic-bezier(.2, .8, .2, 1), opacity .2s, visibility .3s; }
 .thread:focus-within .tools .row, .thread .tools:has(textarea:not(:placeholder-shown)) .row { max-height: 48px; margin: 3px -3px -3px; padding: 3px; opacity: 1; visibility: visible; }
@@ -1452,8 +1453,11 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     renderSheet();
   }
 
-  function openSheet(owner, tab) {
-    animate(sideIsOpen() ? 'side' : 'side-open', () => showSheet(owner, tab));
+  function openSheet(owner, tab, then) {
+    animate(sideIsOpen() ? 'side' : 'side-open', () => {
+      showSheet(owner, tab);
+      then?.();
+    });
   }
 
   function showSheet(owner, tab) {
@@ -1668,10 +1672,12 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     return 'code';
   }
 
+  const followsSheet = (el) => !compact.matches && !el.closest('.sheet');
+
   function commentOn(el) {
     const sel = getSelection();
     const quote = sel && !sel.isCollapsed && el.contains(sel.anchorNode) ? sel.toString().trim().slice(0, 300) : '';
-    const sheetFollows = !compact.matches && !el.closest('.sheet');
+    const sheetFollows = followsSheet(el);
     const lent = sheetFollows && sheetOwner !== el;
     if (lent) {
       openSheet(el, defaultTab(el));
@@ -2251,7 +2257,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   let selectedKey = null;
 
   // Wide screens select the thread in the margin; without a margin, the panel shows it alone.
-  function selectThread(thread) {
+  function selectThread(thread, reply = false) {
     if (!thread) {
       return;
     }
@@ -2268,6 +2274,18 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       renderMargin();
     }
     flashChange(thread);
+    if (reply) {
+      cards.get(thread.key)?.el.querySelector('.tools textarea')?.focus({ preventScroll: true });
+    }
+  }
+
+  // An element with a thread opens its sheet like any other, then the thread takes the place of the comment popover.
+  function openElementThread(el, thread) {
+    if (!followsSheet(el) || sheetOwner === el) {
+      selectThread(thread, true);
+      return;
+    }
+    openSheet(el, defaultTab(el), () => selectThread(thread, true));
   }
 
   function clearSelection() {
@@ -2826,7 +2844,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     const el = e.target.closest('[data-ct]');
     const thread = el && threadOn(el);
     if (thread) {
-      selectThread(thread);
+      openElementThread(el, thread);
       return;
     }
     clearSelection();

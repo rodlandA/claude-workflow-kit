@@ -615,7 +615,11 @@ async function checkThreadActions(browser, url, dir) {
   check(!(await selected()) && !(await boxLit()), 'select: Esc clears the selection');
   await page.locator('main .box').first().click();
   await page.waitForTimeout(500);
-  check((await page.locator('.pop').count()) === 0 && await selected(), 'select: clicking an element with a thread selects the thread instead of opening a comment');
+  const replying = await page.evaluate((t) => document.activeElement === document.querySelector(`.margin .thread[data-key="${t}"] .tools textarea`), box.target);
+  check((await page.locator('.pop').count()) === 0 && await page.locator('.sheet').isVisible() && await selected() && replying, 'select: clicking an element with a thread opens its sheet like any element, and selects the thread to reply in');
+  check(await card().locator('[data-a=open-info], [data-a=open-code]').evaluateAll((els) => els.every((el) => !el.checkVisibility())), 'select: a margin thread has no Info or Code buttons, since its element opens them');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
   await page.keyboard.press('Escape');
   await page.waitForTimeout(500);
   const step = await page.evaluate(() => {
