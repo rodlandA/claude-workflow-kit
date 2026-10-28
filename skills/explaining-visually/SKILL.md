@@ -59,7 +59,7 @@ Prose is what turns a page back into a wall of text. A section carries at most a
 | Steps | `<ol class="steps"><li class="step [new\|changed\|removed]"><b>…</b><small>…</small></li>` |
 | Callouts | `<div class="callout trap\|decision\|question"><b>Label</b>text</div>` |
 | Table | `<table class="files">`, any short table |
-| Tick-off cell | `<td data-check="<name>"></td>` in a table row — the reader ticks it when they have checked that row, and you get a `CHECK` event. Give the row a `<b>` so the event can name it |
+| Tick-off box | `data-check="<name>"` on any element — a table cell, a `.step`, a `.box`. The reader ticks it once they have checked that thing, and you get a `CHECK` event naming the nearest commentable element, so give that one a `<b>` |
 | Drawing | `<figure><svg viewBox="…" aria-label="…">`, see Drawing |
 | Live figure | `<figure class="live" data-c="…">` with a module script, see Live figures |
 

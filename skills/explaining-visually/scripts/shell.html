@@ -1780,7 +1780,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   const checkedNow = (name) => sent.filter((c) => c.kind === 'check' && c.name === name).pop()?.checked ?? false;
 
   function renderChecks() {
-    document.querySelectorAll('main td[data-check]').forEach((cell) => {
+    document.querySelectorAll('main [data-check]').forEach((cell) => {
       const box = cell.querySelector('.chk') ?? cell.appendChild(document.createElement('button'));
       box.className = 'chk';
       box.type = 'button';
@@ -1794,7 +1794,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   }
 
   function toggleCheck(box) {
-    const cell = box.closest('td[data-check]');
+    const cell = box.closest('[data-check]');
     const row = checkRow(cell);
     const on = box.getAttribute('aria-checked') !== 'true';
     box.setAttribute('aria-checked', String(on));
