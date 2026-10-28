@@ -196,6 +196,13 @@ skill without being asked for by name:
 > I want it as a visual explainer (`explaining-visually` skill) or in the terminal. The
 > explanation comes after my answer. Ask once per topic.
 
+### H. Demo clips
+
+`skills/recording-demos/` → `~/.claude/skills/`. Global: promo videos, README GIFs and
+terminal demos are not tied to one repo. It needs `ffmpeg`, plus Node and Chrome with
+`playwright-core` (or another browser driver) to drive what it records — check
+`command -v ffmpeg` and name what is missing rather than installing it. Nothing to adapt.
+
 ## References between files
 
 Moving a file to another layer breaks whatever names its path. Check these after any
