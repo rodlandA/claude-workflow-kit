@@ -177,6 +177,7 @@ export async function checkToc(browser, url) {
 }
 
 export async function checkChecks(browser, url, dir) {
+  resetPage(dir);
   const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
   await page.goto(url);
   await ready(page);
@@ -187,6 +188,11 @@ export async function checkChecks(browser, url, dir) {
   check((await box.getAttribute('aria-checked')) === 'true', 'checks: clicking it ticks it');
   const pending = execFileSync(process.execPath, [path.join(here, 'serve.mjs'), '--pending', '--dir', dir], { encoding: 'utf8' });
   check(/\[example\] CHECK \S+ L\d+ \[.+ › cookie\.ts\] "cookie\.ts" :: tested/.test(pending), 'checks: the agent gets one CHECK line naming the row');
+  const waiting = await page.evaluate(() => ({
+    marks: document.querySelectorAll('main .loader, nav.toc .loader, .loader.pin, main .c-sent, .margin .thread').length,
+    pill: document.querySelector('#list').textContent,
+  }));
+  check(waiting.marks === 0 && !waiting.pill.includes('waiting'), `checks: a tick waits for no reply (${JSON.stringify(waiting)})`);
   await page.reload();
   await ready(page);
   check((await page.locator('td[data-check] .chk').getAttribute('aria-checked')) === 'true', 'checks: the tick survives a reload');
@@ -194,6 +200,10 @@ export async function checkChecks(browser, url, dir) {
   await until(page, () => document.querySelector('td[data-check] .chk')?.getAttribute('aria-checked') === 'false');
   const off = execFileSync(process.execPath, [path.join(here, 'serve.mjs'), '--pending', '--dir', dir], { encoding: 'utf8' });
   check(/:: unchecked/.test(off), `checks: unticking says so (${off.trim().split('\n').length} lines)`);
+  editBody(dir, '</table>', '</table>\n  <div data-check="loose">Loose</div>');
+  await until(page, () => Boolean(document.querySelector('[data-check="loose"]')));
+  await settled(page);
+  check((await page.locator('[data-check="loose"] .chk').count()) === 0, 'checks: an element with nothing commentable around it gets no box');
   await page.close();
 }
 

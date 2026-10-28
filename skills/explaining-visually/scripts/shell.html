@@ -649,6 +649,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   } catch {}
   const saveSeen = () => { try { localStorage.setItem(SEEN_KEY, JSON.stringify([...seenIds])); } catch {} };
   const unseen = () => (seenIds ? sent.filter((c) => c.reply && !seenIds.has(c.id)) : []);
+  const awaitsReply = (c) => !c.reply && c.kind !== 'check';
 
   function loadSeen(list) {
     if (!seenIds) {
@@ -1069,7 +1070,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
         el.dataset.cn = el.dataset.cn ? `${el.dataset.cn},${i + 1}` : `${i + 1}`;
       }
     });
-    sent.filter((c) => !c.reply).forEach((c) => findTarget(c.target)?.classList.add('c-sent'));
+    sent.filter(awaitsReply).forEach((c) => findTarget(c.target)?.classList.add('c-sent'));
     markWorking();
   }
 
@@ -1093,7 +1094,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   }
 
   function markWorking() {
-    const waiting = sent.filter((c) => !c.reply);
+    const waiting = sent.filter(awaitsReply);
     const sig = waiting.map((c) => c.id).join();
     if (sig === workingSig) {
       return;
@@ -1396,7 +1397,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     renderOffscreen();
     showTitle();
     renderQuestions();
-    const waiting = sent.filter((c) => !c.reply).length;
+    const waiting = sent.filter(awaitsReply).length;
     const counts = [drafts.length && `${drafts.length} unsent`, waiting && `${waiting} waiting`].filter(Boolean);
     $('#list').textContent = ['Comments', ...counts].join(' · ');
     $('#send').textContent = drafts.length ? `Send batch (${drafts.length})` : 'Send batch';
@@ -1781,6 +1782,9 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   function renderChecks() {
     document.querySelectorAll('main [data-check]').forEach((cell) => {
+      if (!checkRow(cell)) {
+        return;
+      }
       const box = cell.querySelector('.chk') ?? cell.appendChild(document.createElement('button'));
       box.className = 'chk';
       box.type = 'button';
@@ -1788,7 +1792,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       box.innerHTML = TICK;
       const on = checkedNow(cell.dataset.check);
       box.setAttribute('aria-checked', String(on));
-      box.setAttribute('aria-label', labelOf(checkRow(cell) ?? cell));
+      box.setAttribute('aria-label', labelOf(checkRow(cell)));
       box.title = on ? 'Tested — click to undo' : 'Mark as tested';
     });
   }
@@ -1935,7 +1939,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   }
 
   function openItems() {
-    const waiting = sent.filter((c) => !c.reply && c.kind !== 'approve').length;
+    const waiting = sent.filter((c) => awaitsReply(c) && c.kind !== 'approve').length;
     const typed = [...document.querySelectorAll('textarea')].some((t) => t.value.trim());
     const unanswered = questions.filter((q) => !answerOf(q)).length;
     return [
@@ -2167,7 +2171,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   let resolved = {};
   const timeOf = (iso) => (iso ? Date.parse(iso) : 0);
-  const inThread = (c) => c.kind !== 'answer' && c.kind !== 'approve';
+  const inThread = (c) => !['answer', 'approve', 'check'].includes(c.kind);
   const latestReply = (thread) => thread.items.filter((c) => c.reply).pop() ?? null;
 
   function threadsOf() {
