@@ -159,6 +159,11 @@ ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 16px 0; displ
 table.files { width: 100%; border-collapse: collapse; font-size: 13.5px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 table.files td, table.files th { overflow-wrap: anywhere; text-align: left; padding: 8px 12px; border-top: 1px solid var(--line); vertical-align: top; }
 table.files th { background: var(--oat); font: 500 11.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border-top: 0; }
+td[data-check] { width: 1%; white-space: nowrap; }
+.chk { width: 19px; height: 19px; padding: 0; display: block; border: 1.5px solid var(--line); border-radius: 5px; background: var(--card); color: transparent; cursor: pointer; transition: background .12s, border-color .12s, color .12s; }
+.chk:hover { border-color: var(--note); }
+.chk[aria-checked="true"] { background: var(--note); border-color: var(--note); color: var(--card); }
+.chk svg { display: block; margin: auto; }
 
 main aside.more, main .q { display: none; }
 .qzone { background: var(--band); color: var(--band-fg); border: 1px solid light-dark(#c9c1b1, transparent); border-radius: 20px; padding: 18px 18px 18px; margin: 0 0 48px; }
@@ -1386,6 +1391,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   function render() {
     markTargets();
     markChanged();
+    renderChecks();
     renderMargin();
     renderOffscreen();
     showTitle();
@@ -1766,6 +1772,33 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       }
       pop.querySelector('textarea')?.focus();
     });
+  }
+
+  const TICK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6.5"/></svg>';
+
+  const checkRow = (cell) => cell.closest('[data-ct]') ?? cell.closest('tr');
+  const checkedNow = (name) => sent.filter((c) => c.kind === 'check' && c.name === name).pop()?.checked ?? false;
+
+  function renderChecks() {
+    document.querySelectorAll('main td[data-check]').forEach((cell) => {
+      const box = cell.querySelector('.chk') ?? cell.appendChild(document.createElement('button'));
+      box.className = 'chk';
+      box.type = 'button';
+      box.setAttribute('role', 'checkbox');
+      box.innerHTML = TICK;
+      const on = checkedNow(cell.dataset.check);
+      box.setAttribute('aria-checked', String(on));
+      box.setAttribute('aria-label', labelOf(checkRow(cell) ?? cell));
+      box.title = on ? 'Tested — click to undo' : 'Mark as tested';
+    });
+  }
+
+  function toggleCheck(box) {
+    const cell = box.closest('td[data-check]');
+    const row = checkRow(cell);
+    const on = box.getAttribute('aria-checked') !== 'true';
+    box.setAttribute('aria-checked', String(on));
+    post([{ ...commentFrom(row, '', labelOf(row)), kind: 'check', name: cell.dataset.check, checked: on }]);
   }
 
   function commentFrom(el, text, quote) {
@@ -2949,6 +2982,11 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     const ref = e.target.closest('.sheet-body code.ref');
     if (ref) {
       showRefInSheet(ref);
+      return;
+    }
+    const box = e.target.closest('.chk');
+    if (box) {
+      toggleCheck(box);
       return;
     }
     // A thread card or panel item rebuilt by its own click handler has left the document.

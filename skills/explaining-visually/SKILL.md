@@ -59,6 +59,7 @@ Prose is what turns a page back into a wall of text. A section carries at most a
 | Steps | `<ol class="steps"><li class="step [new\|changed\|removed]"><b>…</b><small>…</small></li>` |
 | Callouts | `<div class="callout trap\|decision\|question"><b>Label</b>text</div>` |
 | Table | `<table class="files">`, any short table |
+| Tick-off cell | `<td data-check="<name>"></td>` in a table row — the reader ticks it when they have checked that row, and you get a `CHECK` event. Give the row a `<b>` so the event can name it |
 | Drawing | `<figure><svg viewBox="…" aria-label="…">`, see Drawing |
 | Live figure | `<figure class="live" data-c="…">` with a module script, see Live figures |
 
@@ -109,6 +110,7 @@ Prefer a drawing. A live figure is for what no drawing shows: a 3D shape the rea
    - `[slug] COMMENT <id> L<line> [<section> › <element>] "<quote>" :: <text>` (`GENERAL` instead of `L…` for the whole page)
    - `[slug] EXPAND <id> L<line> [<section> › <element>] :: <question or "(no question)">` — see Expanding
    - `[slug] ANSWER <id> L<line> [#<qid>] "<question>" :: <choice> — <free text>` — revise the page to match, as for a comment; a second ANSWER to the same `qid` replaces the first
+   - `[slug] CHECK <id> L<line> [<section> › <row>] "<row>" :: tested | unchecked` — the reader ticked a `data-check` cell. Nothing to revise; reply only when they tell you something, and never tick one yourself
    - `[slug] APPROVE <id> :: …` — see Approval
 
    On expiry, re-arm the same command at once. Exception: when this expiry and the previous one both delivered no events, do not re-arm; tell the user in one line that you stopped listening, and that clicking the status pill on the page shows what to send to resume. When they send it ("Pick up the comments on <slug> and listen again"), start again from step 1.
