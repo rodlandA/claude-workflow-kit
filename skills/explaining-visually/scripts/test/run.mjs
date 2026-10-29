@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { failures, check, cssBalanced, startServer, launch } from './harness.mjs';
-import { WIDTHS, checkWidth, checkQuestions, checkToc, checkChecks, checkExport, checkLiveUpdate, checkTransitions, checkEditRefresh } from './page.test.mjs';
+import { WIDTHS, checkWidth, checkQuestions, checkToc, checkChecks, checkWideContent, checkExport, checkLiveUpdate, checkTransitions, checkEditRefresh } from './page.test.mjs';
 import { checkServerGuards, checkServerThreads, checkRemote } from './server.test.mjs';
 import { checkMarginReply, checkMarginLayout, checkMarginMotion, checkThreadActions, checkOffscreen, checkExpand, checkReviewFixes } from './margin.test.mjs';
 import { checkLegend, checkDrawing, checkLive, checkShowcase } from './drawing.test.mjs';
@@ -21,6 +21,7 @@ const AREAS = {
     await checkQuestions(browser, url, dir);
     await checkToc(browser, url);
     await checkChecks(browser, url, dir);
+    await checkWideContent(browser, url, dir);
     await checkExport(browser, dir);
     await checkLiveUpdate(browser, url, dir);
     await checkTransitions(browser, url);

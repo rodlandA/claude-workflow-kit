@@ -78,7 +78,11 @@ body { margin: 0; min-height: 100vh; background-color: var(--bg); background-ima
 textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 code { font-family: var(--mono); font-size: .86em; background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
 
-.layout { --margin-w: 300px; display: grid; grid-template-columns: 230px minmax(0, 760px) var(--margin-w); gap: 40px; padding: 0 24px; margin-left: max(0px, calc((100% - 1418px) * .3)); }
+/* The column is as wide as its widest table or drawing needs, so a page of prose stays narrow; spare room goes 3:7 either side */
+.page { display: flex; }
+.page::before { content: ""; flex: 3; }
+.page::after { content: ""; flex: 7; }
+.layout { --margin-w: 300px; --read: 760px; flex: 0 1 auto; min-width: 0; display: grid; grid-template-columns: 230px fit-content(1100px) var(--margin-w); gap: 40px; padding: 0 24px; }
 nav.toc { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow: auto; padding: 96px 0 32px; font-size: 13.5px; }
 nav.toc a { display: flex; align-items: baseline; gap: 10px; color: var(--muted); text-decoration: none; padding: 5px 10px; border-left: 2px solid var(--line); text-wrap: balance; }
 nav.toc a .n { flex: none; min-width: 2ch; font: 500 11px var(--mono); letter-spacing: .04em; }
@@ -89,10 +93,13 @@ nav.toc a.active .n { color: var(--accent); }
 nav.toc a.qlink { margin-bottom: 10px; }
 nav.toc a.qlink .count { margin-left: auto; padding: 0 7px; border-radius: 99px; font: 500 11px/18px var(--mono); background: var(--accent-soft); color: var(--accent); }
 main { padding: 96px 0 120px; min-width: 0; }
+/* Only tables and drawings widen the column; nothing is narrower than --read */
+main::before { content: ""; display: block; width: var(--read); max-width: 100%; }
+:is(main, main section) > :is(h2, h3, ul, ol, .qzone, .flow, .cols) { contain: inline-size; }
 
-h1 { font-size: 38px; font-weight: 650; line-height: 1.1; margin: 0 0 10px; letter-spacing: -.03em; }
+h1 { max-width: var(--read); font-size: 38px; font-weight: 650; line-height: 1.1; margin: 0 0 10px; letter-spacing: -.03em; }
 h1[data-mode]::before { content: attr(data-mode); display: table; margin-bottom: 14px; font: 500 12px var(--mono); letter-spacing: .1em; text-transform: uppercase; padding: 4px 10px; border-radius: 6px; background: var(--flame); color: var(--on-flame); }
-.lede { color: var(--muted); font-size: 18px; margin: 0 0 32px; max-width: 70ch; }
+.lede { color: var(--muted); font-size: 18px; margin: 0 0 32px; max-width: min(70ch, var(--read)); }
 section { margin: 0 0 56px; }
 nav.toc .keys { margin-top: 18px; padding-left: 12px; font-size: 12px; color: var(--muted); }
 nav.toc kbd { font-family: var(--mono); font-size: 11px; padding: 0 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--card); }
@@ -100,7 +107,7 @@ main { counter-reset: sec; }
 section > h2 { counter-increment: sec; font-size: 24px; font-weight: 600; letter-spacing: -.02em; margin: 0 0 16px; padding-top: 14px; border-top: 1px solid var(--line); }
 section > h2::before { content: counter(sec, decimal-leading-zero); display: block; margin-bottom: 4px; font: 500 12px var(--mono); letter-spacing: .08em; color: var(--accent); }
 h3 { font-size: 16px; margin: 22px 0 8px; }
-p { max-width: 72ch; }
+p { max-width: min(72ch, var(--read)); }
 
 .tldr { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; padding: 0; list-style: none; margin: 0 0 40px; }
 .tldr li { background: var(--oat); border-radius: 12px; padding: 16px 18px; }
@@ -144,20 +151,20 @@ p { max-width: 72ch; }
 .legend .removed::before { border-color: var(--removed); background: var(--removed-soft); }
 .legend .focus::before { border-color: var(--fg); }
 
-ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 16px 0; display: grid; gap: 10px; }
+ol.steps { max-width: var(--read); list-style: none; counter-reset: s; padding: 0; margin: 16px 0; display: grid; gap: 10px; }
 .step { counter-increment: s; position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px 12px 52px; }
 .step::before { content: counter(s); position: absolute; left: 14px; top: 11px; width: 26px; height: 26px; border-radius: 50%; background: light-dark(#1b2632, #ffb162); color: light-dark(#ffb162, #1b2632); font: 600 12px var(--mono); display: grid; place-items: center; }
 .step b { display: block; }
 .step small { color: var(--muted); }
 
-.callout { border-left: 4px solid var(--accent); background: var(--card); border-radius: 0 10px 10px 0; padding: 12px 16px; margin: 14px 0; }
+.callout { max-width: var(--read); border-left: 4px solid var(--accent); background: var(--card); border-radius: 0 10px 10px 0; padding: 12px 16px; margin: 14px 0; }
 .callout > b:first-child { display: block; font: 500 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 2px; }
 .callout.trap { border-color: var(--removed); } .callout.trap > b:first-child { color: var(--removed); }
 .callout.decision { border-color: var(--note); } .callout.decision > b:first-child { color: var(--note); }
 .callout.question { border-color: var(--changed); } .callout.question > b:first-child { color: var(--changed); }
 
-table.files { width: 100%; border-collapse: collapse; font-size: 13.5px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-table.files td, table.files th { overflow-wrap: anywhere; text-align: left; padding: 8px 12px; border-top: 1px solid var(--line); vertical-align: top; }
+table.files { min-width: min(100%, var(--read)); border-collapse: collapse; font-size: 13.5px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+table.files td, table.files th { overflow-wrap: break-word; text-align: left; padding: 8px 12px; border-top: 1px solid var(--line); vertical-align: top; }
 table.files th { background: var(--oat); font: 500 11.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border-top: 0; }
 td[data-check] { width: 1%; white-space: nowrap; }
 .chk { width: 19px; height: 19px; padding: 0; display: block; border: 1.5px solid var(--line); border-radius: 5px; background: var(--card); color: transparent; cursor: pointer; transition: background .12s, border-color .12s, color .12s; }
@@ -207,6 +214,7 @@ tr.has-more > td:first-child { box-shadow: inset 3px 0 var(--accent); }
 
 figure { margin: 16px 0; }
 figure svg { max-width: 100%; height: auto; }
+figure.live { max-width: var(--read); }
 figcaption { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
 .live-stage { position: relative; width: 100%; aspect-ratio: 16 / 9; border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow: hidden; }
 .live-stage canvas { display: block; }
@@ -536,7 +544,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 .page { container-type: inline-size; }
 @container (max-width: 1250px) {
   nav.toc .keys { display: none; }
-  .layout { --margin-w: 260px; grid-template-columns: minmax(0, 1fr) var(--margin-w); column-gap: 32px; row-gap: 0; padding: 0 16px; margin-left: 0; }
+  .layout { --margin-w: 260px; flex: 1 0 100%; grid-template-columns: minmax(0, 1fr) var(--margin-w); column-gap: 32px; row-gap: 0; padding: 0 16px; }
   nav.toc { grid-column: 1 / -1; position: static; max-height: none; display: flex; gap: 8px; margin: 0 -16px; padding: calc(var(--bar-h) + 16px) 16px 2px; overflow-x: auto; scrollbar-width: none; }
   nav.toc a, nav.toc a.sub { flex: none; border: 1px solid var(--line); border-radius: 99px; padding: 6px 12px; margin: 0; white-space: nowrap; background: var(--card); font-size: 13px; }
   nav.toc a.sub { display: none; }
@@ -545,6 +553,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 }
 @container (max-width: 860px) {
   .layout { grid-template-columns: 1fr; gap: 0; }
+  table.files :is(td, th) { overflow-wrap: anywhere; }
   .margin { display: none; }
 }
 @media (max-width: 860px) {
@@ -558,7 +567,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   .theme .knob, .theme svg { transition: none !important; }
   html { scroll-behavior: auto; }
 }
-@media print { .bar, .panel, .sheet, .cbtn, .h-cbtn, nav.toc, .margin { display: none; } .layout { display: block; } }
+@media print { .bar, .panel, .sheet, .cbtn, .h-cbtn, nav.toc, .margin { display: none; } .page, .layout { display: block; } }
 </style>
 </head>
 <body>
@@ -1030,6 +1039,13 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
       holder = up;
     }
     return holder;
+  }
+
+  // A drawing is as wide as its viewBox and no wider, so it draws 1:1 and the column grows to fit it.
+  function sizeDrawings() {
+    document.querySelectorAll('main figure > svg[viewBox]:not([width])').forEach((svg) => {
+      svg.setAttribute('width', svg.viewBox.baseVal.width);
+    });
   }
 
   function addLegends() {
@@ -2066,6 +2082,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     document.querySelectorAll('main .ibadge').forEach((el) => el.remove());
     collectMores();
     syncLives();
+    sizeDrawings();
     addLegends();
     addSectionButtons();
     buildTocLinks();
@@ -3119,6 +3136,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   tagTargets();
   collectMores();
   syncLives();
+  sizeDrawings();
   addLegends();
   setupQuestions();
   addSectionButtons();

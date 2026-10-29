@@ -176,6 +176,39 @@ export async function checkToc(browser, url) {
   await page.close();
 }
 
+const WIDE = `<table class="files" id="wide"><tr><th>Area</th><th>Now</th><th>After</th><th>Owner</th></tr>
+    <tr><td><code>api/auth/cookie.ts</code></td><td>Bearer tokens are read in every route handler. Each handler repeats the same parsing.</td><td>One middleware reads the cookie. Routes get the user from the request, and nothing else changes.</td><td>both</td></tr></table>
+  <figure><svg id="wide-svg" viewBox="0 0 1000 80" aria-label="wide"><rect class="node" width="1000" height="80"/></svg></figure>
+</section>`;
+
+export async function checkWideContent(browser, url, dir) {
+  resetPage(dir);
+  const page = await browser.newPage({ viewport: { width: 1920, height: 1000 } });
+  await page.goto(url);
+  await ready(page);
+  const width = (sel) => page.evaluate((s) => Math.round(document.querySelector(s).getBoundingClientRect().width), sel);
+  check((await width('main')) === 760, `width: a page of prose keeps the 760px column on a wide screen (${await width('main')})`);
+  await afterEdit(page, 'main', () => editBody(dir, '</section>', WIDE));
+  const wide = await page.evaluate(() => ({
+    main: Math.round(document.querySelector('main').getBoundingClientRect().width),
+    p: Math.max(...[...document.querySelectorAll('main p')].map((el) => Math.round(el.getBoundingClientRect().width))),
+    svg: Math.round(document.querySelector('#wide-svg').getBoundingClientRect().width),
+  }));
+  check(wide.main > 760 && wide.main <= 1100 && wide.p <= 760, `width: a wide table or drawing widens the column, text stays at 760px (${JSON.stringify(wide)})`);
+  check(wide.svg === 1000, `width: a drawing shows at its viewBox width (${wide.svg})`);
+  await page.setViewportSize({ width: 1512, height: 900 });
+  await settled(page);
+  const owner = await page.evaluate(() => {
+    const td = [...document.querySelectorAll('#wide td')].at(-1);
+    const text = document.createRange();
+    text.selectNodeContents(td);
+    return { lines: text.getClientRects().length, overflow: document.documentElement.scrollWidth - innerWidth };
+  });
+  check(owner.lines === 1 && owner.overflow <= 0, `width: a one-word column keeps its word whole (${JSON.stringify(owner)})`);
+  await page.close();
+  resetPage(dir);
+}
+
 export async function checkChecks(browser, url, dir) {
   resetPage(dir);
   const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
