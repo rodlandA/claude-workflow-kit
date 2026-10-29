@@ -159,6 +159,11 @@ ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 16px 0; displ
 table.files { width: 100%; border-collapse: collapse; font-size: 13.5px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 table.files td, table.files th { overflow-wrap: anywhere; text-align: left; padding: 8px 12px; border-top: 1px solid var(--line); vertical-align: top; }
 table.files th { background: var(--oat); font: 500 11.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border-top: 0; }
+td[data-check] { width: 1%; white-space: nowrap; }
+.chk { width: 19px; height: 19px; padding: 0; display: block; border: 1.5px solid var(--line); border-radius: 5px; background: var(--card); color: transparent; cursor: pointer; transition: background .12s, border-color .12s, color .12s; }
+.chk:hover { border-color: var(--note); }
+.chk[aria-checked="true"] { background: var(--note); border-color: var(--note); color: var(--card); }
+.chk svg { display: block; margin: auto; }
 
 main aside.more, main .q { display: none; }
 .qzone { background: var(--band); color: var(--band-fg); border: 1px solid light-dark(#c9c1b1, transparent); border-radius: 20px; padding: 18px 18px 18px; margin: 0 0 48px; }
@@ -644,6 +649,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   } catch {}
   const saveSeen = () => { try { localStorage.setItem(SEEN_KEY, JSON.stringify([...seenIds])); } catch {} };
   const unseen = () => (seenIds ? sent.filter((c) => c.reply && !seenIds.has(c.id)) : []);
+  const awaitsReply = (c) => !c.reply && c.kind !== 'check';
 
   function loadSeen(list) {
     if (!seenIds) {
@@ -1064,7 +1070,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
         el.dataset.cn = el.dataset.cn ? `${el.dataset.cn},${i + 1}` : `${i + 1}`;
       }
     });
-    sent.filter((c) => !c.reply).forEach((c) => findTarget(c.target)?.classList.add('c-sent'));
+    sent.filter(awaitsReply).forEach((c) => findTarget(c.target)?.classList.add('c-sent'));
     markWorking();
   }
 
@@ -1088,7 +1094,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   }
 
   function markWorking() {
-    const waiting = sent.filter((c) => !c.reply);
+    const waiting = sent.filter(awaitsReply);
     const sig = waiting.map((c) => c.id).join();
     if (sig === workingSig) {
       return;
@@ -1386,11 +1392,12 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   function render() {
     markTargets();
     markChanged();
+    renderChecks();
     renderMargin();
     renderOffscreen();
     showTitle();
     renderQuestions();
-    const waiting = sent.filter((c) => !c.reply).length;
+    const waiting = sent.filter(awaitsReply).length;
     const counts = [drafts.length && `${drafts.length} unsent`, waiting && `${waiting} waiting`].filter(Boolean);
     $('#list').textContent = ['Comments', ...counts].join(' · ');
     $('#send').textContent = drafts.length ? `Send batch (${drafts.length})` : 'Send batch';
@@ -1768,6 +1775,36 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     });
   }
 
+  const TICK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6.5"/></svg>';
+
+  const checkRow = (cell) => cell.closest('[data-ct]') ?? cell.closest('tr');
+  const checkedNow = (name) => sent.filter((c) => c.kind === 'check' && c.name === name).pop()?.checked ?? false;
+
+  function renderChecks() {
+    document.querySelectorAll('main [data-check]').forEach((cell) => {
+      if (!checkRow(cell)) {
+        return;
+      }
+      const box = cell.querySelector('.chk') ?? cell.appendChild(document.createElement('button'));
+      box.className = 'chk';
+      box.type = 'button';
+      box.setAttribute('role', 'checkbox');
+      box.innerHTML = TICK;
+      const on = checkedNow(cell.dataset.check);
+      box.setAttribute('aria-checked', String(on));
+      box.setAttribute('aria-label', labelOf(checkRow(cell)));
+      box.title = on ? 'Tested — click to undo' : 'Mark as tested';
+    });
+  }
+
+  function toggleCheck(box) {
+    const cell = box.closest('[data-check]');
+    const row = checkRow(cell);
+    const on = box.getAttribute('aria-checked') !== 'true';
+    box.setAttribute('aria-checked', String(on));
+    post([{ ...commentFrom(row, '', labelOf(row)), kind: 'check', name: cell.dataset.check, checked: on }]);
+  }
+
   function commentFrom(el, text, quote) {
     return { id: newId(), target: el ? el.dataset.ct : 'document', line: el ? Number(el.dataset.line) || null : null, quote, text };
   }
@@ -1902,7 +1939,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
   }
 
   function openItems() {
-    const waiting = sent.filter((c) => !c.reply && c.kind !== 'approve').length;
+    const waiting = sent.filter((c) => awaitsReply(c) && c.kind !== 'approve').length;
     const typed = [...document.querySelectorAll('textarea')].some((t) => t.value.trim());
     const unanswered = questions.filter((q) => !answerOf(q)).length;
     return [
@@ -2134,7 +2171,7 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
 
   let resolved = {};
   const timeOf = (iso) => (iso ? Date.parse(iso) : 0);
-  const inThread = (c) => c.kind !== 'answer' && c.kind !== 'approve';
+  const inThread = (c) => !['answer', 'approve', 'check'].includes(c.kind);
   const latestReply = (thread) => thread.items.filter((c) => c.reply).pop() ?? null;
 
   function threadsOf() {
@@ -2949,6 +2986,11 @@ dialog.confirm button.primary { background: var(--flame); color: var(--on-flame)
     const ref = e.target.closest('.sheet-body code.ref');
     if (ref) {
       showRefInSheet(ref);
+      return;
+    }
+    const box = e.target.closest('.chk');
+    if (box) {
+      toggleCheck(box);
       return;
     }
     // A thread card or panel item rebuilt by its own click handler has left the document.

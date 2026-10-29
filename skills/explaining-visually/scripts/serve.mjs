@@ -81,6 +81,9 @@ const oneLine = (slug, c) => {
     const answer = [c.choice, c.text].filter(Boolean).map(flat).join(' — ');
     return `[${slug}] ANSWER ${id} L${line} [#${flat(c.qid)}] "${flat(c.quote).replace(/\s+/g, ' ')}" :: ${answer}`;
   }
+  if (c.kind === 'check') {
+    return `[${slug}] CHECK ${id} L${line} [${flat(c.target)}] "${flat(c.quote)}" :: ${c.checked ? 'tested' : 'unchecked'}`;
+  }
   const kind = c.kind === 'expand' ? 'EXPAND' : 'COMMENT';
   const where = c.target === 'document' ? 'GENERAL' : `L${line} [${flat(c.target)}]`;
   const quote = c.quote ? ` "${flat(c.quote).replace(/\s+/g, ' ')}"` : '';
