@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { check, resetPage, editBody, replyTo, postComments, here, until, settled, ready, afterEdit, scrolled } from './harness.mjs';
+import { check, resetPage, editBody, replyTo, postComments, pendingWhen, here, until, settled, ready, afterEdit, scrolled } from './harness.mjs';
 
 export const WIDTHS = [
   { w: 390, h: 844 },
@@ -140,7 +140,7 @@ export async function checkQuestions(browser, url, dir) {
   await until(page, () => document.querySelector('.qcard .qhead span')?.textContent === 'Question 2 of 2');
   check((await head()) === 'Question 2 of 2', 'questions: answering moves to the next one');
   check((await page.locator('details.qa summary').textContent()) === 'Your answers (1)', 'questions: the answer lands in the log');
-  const pending = execFileSync(process.execPath, [path.join(here, 'serve.mjs'), '--pending', '--dir', dir], { encoding: 'utf8' });
+  const pending = await pendingWhen(dir, (lines) => lines.includes('ANSWER'));
   check(/\[example\] ANSWER \S+ L4 \[#q-mobile\] "Should the mobile app move to cookies too\?" :: Move it too — but not before 2\.0/.test(pending), 'questions: the agent gets choice and free text in one ANSWER line');
   await page.locator('details.qa summary').click();
   await page.locator('details.qa .qa-item button').click();
@@ -176,6 +176,39 @@ export async function checkToc(browser, url) {
   await page.close();
 }
 
+const WIDE = `<table class="files" id="wide"><tr><th>Area</th><th>Now</th><th>After</th><th>Owner</th></tr>
+    <tr><td><code>api/auth/cookie.ts</code></td><td>Bearer tokens are read in every route handler. Each handler repeats the same parsing.</td><td>One middleware reads the cookie. Routes get the user from the request, and nothing else changes.</td><td>both</td></tr></table>
+  <figure><svg id="wide-svg" viewBox="0 0 1000 80" aria-label="wide"><rect class="node" width="1000" height="80"/></svg></figure>
+</section>`;
+
+export async function checkWideContent(browser, url, dir) {
+  resetPage(dir);
+  const page = await browser.newPage({ viewport: { width: 1920, height: 1000 } });
+  await page.goto(url);
+  await ready(page);
+  const width = (sel) => page.evaluate((s) => Math.round(document.querySelector(s).getBoundingClientRect().width), sel);
+  check((await width('main')) === 760, `width: a page of prose keeps the 760px column on a wide screen (${await width('main')})`);
+  await afterEdit(page, 'main', () => editBody(dir, '</section>', WIDE));
+  const wide = await page.evaluate(() => ({
+    main: Math.round(document.querySelector('main').getBoundingClientRect().width),
+    p: Math.max(...[...document.querySelectorAll('main p')].map((el) => Math.round(el.getBoundingClientRect().width))),
+    svg: Math.round(document.querySelector('#wide-svg').getBoundingClientRect().width),
+  }));
+  check(wide.main > 760 && wide.main <= 1100 && wide.p <= 760, `width: a wide table or drawing widens the column, text stays at 760px (${JSON.stringify(wide)})`);
+  check(wide.svg === 1000, `width: a drawing shows at its viewBox width (${wide.svg})`);
+  await page.setViewportSize({ width: 1512, height: 900 });
+  await settled(page);
+  const owner = await page.evaluate(() => {
+    const td = [...document.querySelectorAll('#wide td')].at(-1);
+    const text = document.createRange();
+    text.selectNodeContents(td);
+    return { lines: text.getClientRects().length, overflow: document.documentElement.scrollWidth - innerWidth };
+  });
+  check(owner.lines === 1 && owner.overflow <= 0, `width: a one-word column keeps its word whole (${JSON.stringify(owner)})`);
+  await page.close();
+  resetPage(dir);
+}
+
 export async function checkChecks(browser, url, dir) {
   resetPage(dir);
   const page = await browser.newPage({ viewport: { width: 1512, height: 900 } });
@@ -186,7 +219,7 @@ export async function checkChecks(browser, url, dir) {
   await box.click();
   await settled(page);
   check((await box.getAttribute('aria-checked')) === 'true', 'checks: clicking it ticks it');
-  const pending = execFileSync(process.execPath, [path.join(here, 'serve.mjs'), '--pending', '--dir', dir], { encoding: 'utf8' });
+  const pending = await pendingWhen(dir, (lines) => lines.includes(':: tested'));
   check(/\[example\] CHECK \S+ L\d+ \[.+ › cookie\.ts\] "cookie\.ts" :: tested/.test(pending), 'checks: the agent gets one CHECK line naming the row');
   const waiting = await page.evaluate(() => ({
     marks: document.querySelectorAll('main .loader, nav.toc .loader, .loader.pin, main .c-sent, .margin .thread').length,
@@ -197,8 +230,7 @@ export async function checkChecks(browser, url, dir) {
   await ready(page);
   check((await page.locator('td[data-check] .chk').getAttribute('aria-checked')) === 'true', 'checks: the tick survives a reload');
   await page.locator('td[data-check] .chk').click();
-  await until(page, () => document.querySelector('td[data-check] .chk')?.getAttribute('aria-checked') === 'false');
-  const off = execFileSync(process.execPath, [path.join(here, 'serve.mjs'), '--pending', '--dir', dir], { encoding: 'utf8' });
+  const off = await pendingWhen(dir, (lines) => lines.includes(':: unchecked'));
   check(/:: unchecked/.test(off), `checks: unticking says so (${off.trim().split('\n').length} lines)`);
   editBody(dir, '</table>', '</table>\n  <div data-check="loose">Loose</div>');
   await until(page, () => Boolean(document.querySelector('[data-check="loose"]')));

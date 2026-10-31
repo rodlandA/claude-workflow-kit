@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { check, startServer, launch, exchange, request, resetPage, editBody, replyTo, postComments, state, postResolve, here, waitFor } from './harness.mjs';
 
 export async function checkServerGuards(url, dir) {
@@ -57,6 +57,11 @@ export async function checkServerThreads(url, dir) {
   await waitFor(async () => heard.includes('still open'));
   watcher.kill();
   check(heard.includes('still open') && !heard.includes('answered before listening'), 'watch: a comment answered before the watcher starts is not delivered again');
+  const missing = (extra) => spawnSync(process.execPath, [path.join(here, 'serve.mjs'), ...extra], { encoding: 'utf8', timeout: 5000 });
+  const noDir = missing(['--pending', '--dir', path.join(dir, 'absent')]);
+  const noPage = missing(['absent', '--watch', '--dir', dir]);
+  check(noDir.status === 2 && /not found/.test(noDir.stderr) && !fs.existsSync(path.join(dir, 'absent')), `pending: a missing folder is an error, not an empty result (${noDir.status})`);
+  check(noPage.status === 2 && /not found: absent/.test(noPage.stderr), `watch: a missing page is an error, not a silent watcher (${noPage.status})`);
   resetPage(dir);
 }
 
