@@ -58,7 +58,7 @@ Prose is what turns a page back into a wall of text. A section carries at most a
 | Side by side | `<div class="cols"><div class="col"><h4>Before</h4>…</div>…</div>` |
 | Steps | `<ol class="steps"><li class="step [new\|changed\|removed]"><b>…</b><small>…</small></li>` |
 | Callouts | `<div class="callout trap\|decision\|question"><b>Label</b>text</div>` |
-| Table | `<table class="files">`, any short table |
+| Table | `<table class="files">`, as many columns as the comparison has; it widens the page to fit them where the screen has room |
 | Tick-off box | `data-check="<name>"` on any element — a table cell, a `.step`, a `.box`. The reader ticks it once they have checked that thing, and you get a `CHECK` event naming the nearest commentable element, so give that one a `<b>`. Without a commentable element on or around it, no box appears |
 | Drawing | `<figure><svg viewBox="…" aria-label="…">`, see Drawing |
 | Live figure | `<figure class="live" data-c="…">` with a module script, see Live figures |
@@ -71,7 +71,7 @@ In this skill's folder, `example.body.html` is a complete plan and `showcase.bod
 
 Each visual takes the shape of what it shows: actors over time read as a sequence, states as a state diagram, containment as nested shapes, a screen as a wireframe, a data shape as the real value annotated, sizes as bars to proportion. A row of boxes and arrows fits a pipeline and nothing else. When nothing familiar fits, invent the picture.
 
-Draw inline SVG in a `<figure>`, with a `viewBox` and no fixed width. The column is 760px wide, so `viewBox="0 0 760 …"` draws at 1:1; a `text.label` character is about 6.6px wide. Ids are page-wide: prefix them with the figure's name.
+Draw inline SVG in a `<figure>`, with a `viewBox` and no fixed width. It draws at 1:1 as wide as its viewBox, and scales down only on a narrower screen. Text keeps a 760px reading width, so `viewBox="0 0 760 …"` lines up with it; a drawing that needs more room, a long timeline or a wide sequence, may draw up to 1100 wide and the page widens for it; a `text.label` character is about 6.6px wide. Ids are page-wide: prefix them with the figure's name.
 
 - Shell classes: `node` (a shape) and `node new|changed|removed|focus`, `edge`, `edge arrow`, `edge dashed`, `lane` (background band), `text.label` (small mono caption), `muted`.
 - Other colours go in `style`, since an attribute cannot hold `var()`: `<rect style="fill: var(--flame-200)">`. Hues `--flame-*`, `--truffle-*`, `--blue-fantastic-*` run from 100 (nearest the page) to 900 (nearest the text) in either theme, at 100–400 and 600–900: light steps under `--fg` text, dark steps for lines. `--blue-fantastic` is the dark page's own colour, so its light steps vanish there. The hues are the state colours too, so in a figure that shows states, tell other kinds apart by shape, pattern or label rather than colour.
@@ -103,7 +103,7 @@ Prefer a drawing. A live figure is for what no drawing shows: a 3D shape the rea
 
 `SERVE` is `node ~/.claude/skills/explaining-visually/scripts/serve.mjs`. Run it from the repo root: code references resolve against it.
 
-1. **Unanswered first** — `SERVE --pending` lists comments without a reply on every page of this repo. Handle the ones on your topic before anything else.
+1. **Unanswered first** — `SERVE --pending` lists comments without a reply on every page of this repo. Handle the ones on your topic before anything else. It and `--watch` exit 2 when the folder or a named page does not exist: the pages are elsewhere (a worktree reads its own folder name), so pass `--dir`.
 2. **Server** — `SERVE <slug>` with Bash `run_in_background: true`. It reuses a server already running for this repo, opens the page unless a tab has it, and prints the URL; give the user `http://127.0.0.1:<port>/<slug>/`.
    - **Another device** (the user says they are on a phone, or drives this machine remotely): ask once per session how the device reaches this machine, then add `--remote tailnet` (Tailscale), `--remote lan` (same wifi) or `--remote tunnel` (their own tunnel to the printed port). Give them the `remote:` URL: its token works like a password, and any request from outside this machine without it gets a 403. Without a way in yet, point them to `docs/explaining-visually-remote.md` in the kit. A cloud session cannot serve a page; say so.
 3. **Watcher** — `Monitor` with `SERVE <slug> --watch`, `timeout_ms: 1800000`, description `comments on <slug>`. Name only your own pages: another session may share the folder. Events:

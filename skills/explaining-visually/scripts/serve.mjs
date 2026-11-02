@@ -141,7 +141,17 @@ function locateLines(body, entries) {
 const replyView = (r, body) => (r ? { text: r.text, at: r.at, lines: locateLines(body, r.changed ?? []) } : null);
 const lineNow = (c, body) => (c.lineText ? locateLines(body, [{ text: c.lineText, line: Number(c.line) || 0 }])[0] ?? null : null);
 
+// A missing folder or page would read as "nothing waiting", so it is an error, never an empty result.
+function requireWatched() {
+  const missing = fs.existsSync(dir) ? named.filter((slug) => !isPage(slug)) : [dir];
+  if (missing.length) {
+    console.error(`not found: ${missing.join(', ')}${fs.existsSync(dir) ? ` in ${dir}` : ''} — pass --dir to read another folder`);
+    process.exit(2);
+  }
+}
+
 function pending() {
+  requireWatched();
   const lines = slugs().flatMap((slug) => {
     const replies = readJson(sidecar(slug, 'replies.json'), {});
     return readComments(slug).filter((c) => !replies[c.id]).map((c) => oneLine(slug, c));
@@ -150,6 +160,7 @@ function pending() {
 }
 
 function watch() {
+  requireWatched();
   const watched = () => (named.length ? named.filter(isPage) : slugs());
   const beats = named.length ? named.map(heartbeat) : [heartbeat(null)];
   const tick = () => {
@@ -171,7 +182,6 @@ function watch() {
     process.exit(0);
   };
   ['SIGTERM', 'SIGINT', 'SIGHUP'].forEach((sig) => process.on(sig, stop));
-  fs.mkdirSync(dir, { recursive: true });
   tick();
   beat();
   setInterval(tick, 500);

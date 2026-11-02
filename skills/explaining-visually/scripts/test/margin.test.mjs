@@ -1,4 +1,4 @@
-import { check, resetPage, editBody, replyTo, postComments, state, pendingLines, linkedTo, overlaps, inView, until, settled, ready, afterEdit, scrolled, waitFor } from './harness.mjs';
+import { check, resetPage, editBody, replyTo, postComments, state, pendingWhen, linkedTo, overlaps, inView, until, settled, ready, afterEdit, scrolled, waitFor } from './harness.mjs';
 
 export async function checkMarginReply(browser, url, dir) {
   resetPage(dir);
@@ -200,8 +200,7 @@ export async function checkThreadActions(browser, url, dir) {
   const card = () => page.locator(`.margin .thread[data-key="${box.target}"]`);
   await card().locator('textarea').fill('one more');
   await card().locator('[data-a=send]').click();
-  await waitFor(async () => pendingLines(dir).includes(`[${box.target}] "↩ Done." :: one more`), 20);
-  check(pendingLines(dir).includes(`[${box.target}] "↩ Done." :: one more`), 'actions: a reply in the thread reaches Claude with its previous answer quoted');
+  check((await pendingWhen(dir, (lines) => lines.includes(`[${box.target}] "↩ Done." :: one more`))) !== '', 'actions: a reply in the thread reaches Claude with its previous answer quoted');
   await card().locator('textarea').fill('later');
   await card().locator('[data-a=batch]').click();
   await settled(page);
@@ -286,8 +285,7 @@ export async function checkThreadActions(browser, url, dir) {
   check(await page.locator('.panel.open').isVisible() && (await page.locator(`.panel .thread-item[data-key="${box.target}"]`).count()) === 1 && (await page.locator('.panel .thread-item').count()) === 1, '390px: tapping an element with a thread opens that thread');
   await page.locator('.panel .thread-item textarea').fill('from the panel');
   await page.locator('.panel .thread-item [data-a=send]').click();
-  await waitFor(async () => pendingLines(dir).includes(`[${box.target}] "↩ Tightened." :: from the panel`), 20);
-  check(pendingLines(dir).includes(`[${box.target}] "↩ Tightened." :: from the panel`), '390px: a reply typed in the panel continues the thread');
+  check((await pendingWhen(dir, (lines) => lines.includes(`[${box.target}] "↩ Tightened." :: from the panel`))) !== '', '390px: a reply typed in the panel continues the thread');
   await page.close();
   resetPage(dir);
 }

@@ -98,6 +98,15 @@ export async function waitFor(probeOnce, tries = 60) {
   return null;
 }
 
+// The --pending output once has(output) holds, '' on timeout: a click's post lands after the page has settled.
+export async function pendingWhen(dir, has) {
+  const lines = await waitFor(async () => {
+    const now = pendingLines(dir);
+    return has(now) ? now : null;
+  }, 20);
+  return lines ?? '';
+}
+
 export async function linkedTo(page, key) {
   await page.locator(`.margin .thread[data-key="${key}"]`).hover();
   await settled(page);
@@ -124,7 +133,7 @@ export async function until(page, fn, arg, timeout = 8000) {
   }
 }
 
-// Animations and view transitions have finished; spinners that loop forever do not count.
+// Animations and view transitions have finished; spinners that loop forever do not count. A post in flight does: pendingWhen.
 export const settled = async (page) => {
   const done = await until(page, () => ![...document.documentElement.classList].some((c) => c.startsWith('vt-'))
     && document.getAnimations().every((a) => a.effect?.getTiming().iterations === Infinity || a.playState !== 'running'));
