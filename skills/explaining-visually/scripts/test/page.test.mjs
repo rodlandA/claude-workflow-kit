@@ -181,6 +181,8 @@ const WIDE = `<table class="files" id="wide"><tr><th>Area</th><th>Now</th><th>Af
   <figure><svg id="wide-svg" viewBox="0 0 1000 80" aria-label="wide"><rect class="node" width="1000" height="80"/></svg></figure>
 </section>`;
 
+const LONG = (verb) => `<code>services/billing/internal/${verb}LedgerEntriesForAccount.ts</code>`;
+
 export async function checkWideContent(browser, url, dir) {
   resetPage(dir);
   const page = await browser.newPage({ viewport: { width: 1920, height: 1000 } });
@@ -205,6 +207,15 @@ export async function checkWideContent(browser, url, dir) {
     return { lines: text.getClientRects().length, overflow: document.documentElement.scrollWidth - innerWidth };
   });
   check(owner.lines === 1 && owner.overflow <= 0, `width: a one-word column keeps its word whole (${JSON.stringify(owner)})`);
+  editBody(dir, '</table>', `<tr><td>${LONG('reconcile')}</td><td>${LONG('normalize')}</td><td>${LONG('aggregate')}</td><td>${LONG('serialize')}</td></tr></table>`);
+  await page.setViewportSize({ width: 1000, height: 900 });
+  await until(page, () => document.querySelectorAll('#wide tr').length === 3);
+  await settled(page);
+  const squeezed = await page.evaluate(() => ({
+    table: Math.round(document.querySelector('#wide').getBoundingClientRect().right),
+    main: Math.round(document.querySelector('main').getBoundingClientRect().right),
+  }));
+  check(squeezed.table <= squeezed.main, `width: long identifiers wrap instead of running into the margin (${JSON.stringify(squeezed)})`);
   await page.close();
   resetPage(dir);
 }

@@ -165,6 +165,7 @@ ol.steps { max-width: var(--read); list-style: none; counter-reset: s; padding: 
 
 table.files { min-width: min(100%, var(--read)); border-collapse: collapse; font-size: 13.5px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 table.files td, table.files th { overflow-wrap: break-word; text-align: left; padding: 8px 12px; border-top: 1px solid var(--line); vertical-align: top; }
+table.files :is(code, a) { overflow-wrap: anywhere; }
 table.files th { background: var(--oat); font: 500 11.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border-top: 0; }
 td[data-check] { width: 1%; white-space: nowrap; }
 .chk { width: 19px; height: 19px; padding: 0; display: block; border: 1.5px solid var(--line); border-radius: 5px; background: var(--card); color: transparent; cursor: pointer; transition: background .12s, border-color .12s, color .12s; }
