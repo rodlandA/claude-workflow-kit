@@ -8,6 +8,10 @@ description: Use when asked to make a promo video, demo clip, GIF, screencast or
 A demo clip is judged by someone who sees it once, at the size it is shown, often muted and
 without context. Everything below serves that viewer.
 
+For a film of a web app, use the `product-film` skill when it is installed: it records the
+real app and lets the owner review and change the cut in a studio. The rest of this skill
+still says what the clip must do.
+
 ## Agree on the clip before recording
 
 Recording, checking and re-encoding is the slow part, and a wrong length or format means a
