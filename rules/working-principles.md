@@ -49,6 +49,13 @@ building.
 - "Done" means you ran the check and read the output. Quote it. "Should work" is not a
   result, and a green run that tested nothing is not evidence.
 
+## Argue both sides of a decision you are unsure of
+
+When a decision is not clear-cut, make the strongest case for it and the strongest case
+against it before concluding. The first answer that seems reasonable is usually the one the
+context leaned towards, not the best one. Report the conclusion and the argument that
+decided it, not the whole debate.
+
 ## Review findings are claims, not orders
 
 A finding from a reviewer — human or automated — is checked against the code before it
