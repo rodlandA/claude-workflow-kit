@@ -57,6 +57,8 @@ section — that file covers it at length. Keep it if the principles are project
   "the same thing" share one mechanism.
 - **Follow the existing pattern first.** Find how the codebase already solves this and copy
   its shape. Deviating needs a stated reason.
+- **Argue both sides when unsure.** Before settling a decision you are not certain of, make
+  the strongest case for it and the strongest case against it, then conclude.
 
 ## Code style
 
