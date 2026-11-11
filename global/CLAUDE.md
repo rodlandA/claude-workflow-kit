@@ -57,6 +57,13 @@ section — that file covers it at length. Keep it if the principles are project
   "the same thing" share one mechanism.
 - **Follow the existing pattern first.** Find how the codebase already solves this and copy
   its shape. Deviating needs a stated reason.
+- **Build the smallest thing that works.** Delete what nothing calls. No speculative code:
+  no field, role or option kept for a later issue — that issue adds it. A known contract
+  implemented in full is not speculative; building on it before anything reads it is.
+- **Extend before adding.** Grow the request or mechanism that already exists before adding
+  an endpoint, a second call or a parallel path.
+- **A workaround is a signal.** When a design needs one, look for the simpler design first
+  and say which you picked and why.
 - **Argue both sides when unsure.** Before settling a decision you are not certain of, make
   the strongest case for it and the strongest case against it, then conclude.
 

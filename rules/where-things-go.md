@@ -42,6 +42,20 @@ A line belongs in `rules/` only if it is **normative** (says what to do next tim
 | Is it the code, copied? | Teach the shape, not the instance |
 | Would a new X tomorrow make it wrong? | Rewrite it as the predicate that still holds |
 
+## One home per convention
+A convention written down in several places drifts until the copies disagree, and the
+agent follows whichever it read last. Keep it in one file; every other mention is a
+pointer. Where a linter or a hook already enforces it, the config is the home and the
+rule only names it.
+
+Code examples are copies too. Point at the source file that shows the pattern rather
+than pasting it; an example that remains must obey the rules it sits beside.
+
+## Installed skills are guidance too
+A generic or third-party skill loads with the same authority as the project's own rules.
+One that teaches against them — another framework's defaults, patterns the project
+rejected — is worse than none. Delete it rather than outvoting it.
+
 ## Budgets
 <!-- ADAPT: must match FILE_BUDGET / SECTION_BUDGET in hooks/remind-rules-budget.sh. -->
 About 150 words per `###` section and 1200 per file — advisory, enforced by a reminder
