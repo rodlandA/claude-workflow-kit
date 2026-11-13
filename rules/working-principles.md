@@ -43,6 +43,17 @@ Build the size the request implies. A one-sentence idea gets a script, not a sys
 the work will be bigger than the request suggests, say so and state the size before
 building.
 
+## Build the smallest thing that works
+
+- **No speculative code.** No field, role, option or constant kept for a later issue —
+  that issue adds it. Delete what nothing calls. Implementing a known contract in full
+  (a spec, data the other side already sends) is not speculative; building on it before
+  anything reads it is.
+- **Extend before adding.** Grow the request, endpoint or mechanism that already exists
+  before adding a second one, a second call or a parallel path.
+- **A workaround is a signal.** When a design needs one, look for the simpler design that
+  removes the cause, and say which you picked and why.
+
 ## Explain, then change; verify, then claim
 
 - State the root cause and the proposed change before editing. Don't open with a patch.
