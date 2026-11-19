@@ -78,7 +78,6 @@ completed" can hold before CI has registered. `gh pr checks --watch` started rig
 Wait until every reviewer has finished on the head commit — in the background, capped at
 30 minutes:
 ```bash
-SHA=$(gh pr view <N> --json headRefOid -q .headRefOid)
 copilot_done() {
   gh pr view <N> --json reviews --jq \
     "any(.reviews[]; .author.login == \"copilot-pull-request-reviewer\" and .commit.oid == \"$SHA\")" \
@@ -91,6 +90,7 @@ codex_done() {
     | jq -e --arg sha "$SHA" '.code_review | .commit_sha == $sha and .status == "completed"' >/dev/null
 }
 for _ in $(seq 1 60); do
+  SHA=$(gh pr view <N> --json headRefOid -q .headRefOid)
   copilot_done && codex_done && break
   sleep 30
 done
@@ -98,7 +98,9 @@ copilot_done && codex_done || echo "TIMED OUT: no finished review on $SHA"
 ```
 Wait for each reviewer separately. Copilot's quota notice is a review that arrives within
 seconds, and Codex posts a review only when it has findings; its summary comment's
-`codex-review-state` is what says it finished. Neither re-reviews a push by itself: after
+`codex-review-state` is what says it finished. The head is re-read on every poll, so a push
+during the wait waits for the new commit's reviews. `gh pr view` reports Copilot's login
+without the `[bot]` suffix that the REST API shows. Neither re-reviews a push by itself: after
 one, ask with `@codex review` or report the timeout.
 
 Then read the review, including inline comments, which `gh pr view --json comments` does
@@ -122,8 +124,8 @@ gh api graphql -f id="<threadId>" -f query='
 List unresolved thread ids with the `reviewThreads` field on `repository.pullRequest`.
 
 ### 7c. Watch for the merge
-Arm a background watch so the cleanup happens when the PR lands, not when someone
-remembers it:
+Arm a watch so the cleanup happens when the PR lands, not when someone remembers it. Run
+it with the shell tool's background mode; in the foreground it blocks until the PR closes:
 ```bash
 until state=$(gh pr view <N> --json state -q .state 2>/dev/null) \
   && { [ "$state" = MERGED ] || [ "$state" = CLOSED ]; }; do sleep 300; done
