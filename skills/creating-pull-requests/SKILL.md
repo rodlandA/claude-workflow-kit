@@ -46,23 +46,62 @@ Opening the PR is not the end of the task. Report what follows without being ask
 <!-- ADAPT: delete 7a if the repo has no CI. Delete 7b whole if no automated reviewer (e.g. Copilot) is enabled, and then also drop "and the automated review" from the description in the frontmatter. -->
 
 ### 7a. CI
-Wait for every workflow run on the PR's head commit to complete — run the loop in the
-background. It gives up after 30 minutes, since a path filter or a disabled workflow
-means no run ever starts:
+Wait until no check is pending — run the loop in the background. It ends after two
+settled polls in a row, and gives up after 30 minutes:
 ```bash
-SHA=$(gh pr view <N> --json headRefOid -q .headRefOid)
+sleep 60
+settled=0
 for _ in $(seq 1 60); do
-  gh run list --commit "$SHA" --json status --jq 'length > 0 and all(.[]; .status == "completed")' \
-    | grep -qx true && break
+  checks=$(gh pr checks <N> 2>&1)
+  if [ $? -ne 8 ] && ! grep -q "no checks reported" <<<"$checks"; then
+    settled=$((settled + 1))
+  else
+    settled=0
+  fi
+  [ "$settled" -ge 2 ] && break
   sleep 30
 done
+[ "$settled" -ge 2 ] || echo "TIMED OUT: checks still pending"
 gh pr checks <N>
 ```
-`gh pr checks --watch` started right after `gh pr create` can exit green before CI has
-even registered its jobs — do not rely on it. On failure, read `gh run view <run-id> --log-failed`.
+`gh pr checks` exits 8 while a check is pending, 1 on a failure and 0 when all passed. A failure ends the wait early, since it needs action anyway. Before any check has registered it also exits 1, with "no checks reported", so that counts as pending.
+The minute's head start lets CI register its first job; the second poll covers a `needs:`
+job that appears only once its prerequisite finishes.
+
+Do not wait on `gh run list --commit` instead: it also lists runs that are not CI, such as
+GitHub's dependency submission, which may already be complete on the commit, so "every run
+completed" can hold before CI has registered. `gh pr checks --watch` started right after
+`gh pr create` exits green for the same reason. On failure, read `gh run view <run-id> --log-failed`.
 
 ### 7b. Automated review
-Read the review, including inline comments, which `gh pr view --json comments` does
+<!-- ADAPT: keep only the reviewers the repo uses. -->
+Wait until every reviewer has finished on the head commit — in the background, capped at
+30 minutes:
+```bash
+SHA=$(gh pr view <N> --json headRefOid -q .headRefOid)
+copilot_done() {
+  gh pr view <N> --json reviews --jq \
+    "any(.reviews[]; .author.login == \"copilot-pull-request-reviewer\" and .commit.oid == \"$SHA\")" \
+    | grep -qx true
+}
+codex_done() {
+  gh pr view <N> --json comments \
+    --jq '[.comments[].body | select(contains("codex-review-state:v1"))] | last // ""' \
+    | grep -o 'codex-review-state:v1 {.*}' | sed 's/^codex-review-state:v1 //' \
+    | jq -e --arg sha "$SHA" '.code_review | .commit_sha == $sha and .status == "completed"' >/dev/null
+}
+for _ in $(seq 1 60); do
+  copilot_done && codex_done && break
+  sleep 30
+done
+copilot_done && codex_done || echo "TIMED OUT: no finished review on $SHA"
+```
+Wait for each reviewer separately. Copilot's quota notice is a review that arrives within
+seconds, and Codex posts a review only when it has findings; its summary comment's
+`codex-review-state` is what says it finished. Neither re-reviews a push by itself: after
+one, ask with `@codex review` or report the timeout.
+
+Then read the review, including inline comments, which `gh pr view --json comments` does
 not show:
 ```bash
 gh pr view <N> --json reviews --jq '.reviews[] | "\(.author.login) [\(.state)]: \(.body)"'
