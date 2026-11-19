@@ -52,8 +52,8 @@ settled polls in a row, and gives up after 30 minutes:
 sleep 60
 settled=0
 for _ in $(seq 1 60); do
-  gh pr checks <N> >/dev/null 2>&1
-  if [ $? -ne 8 ]; then
+  checks=$(gh pr checks <N> 2>&1)
+  if [ $? -ne 8 ] && ! grep -q "no checks reported" <<<"$checks"; then
     settled=$((settled + 1))
   else
     settled=0
@@ -63,7 +63,7 @@ for _ in $(seq 1 60); do
 done
 gh pr checks <N>
 ```
-`gh pr checks` exits 8 while a check is pending, 1 on a failure and 0 when all passed.
+`gh pr checks` exits 8 while a check is pending, 1 on a failure and 0 when all passed. Before any check has registered it also exits 1, with "no checks reported", so that counts as pending.
 The minute's head start lets CI register its first job; the second poll covers a `needs:`
 job that appears only once its prerequisite finishes.
 
