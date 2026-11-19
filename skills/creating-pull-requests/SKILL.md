@@ -86,8 +86,11 @@ List unresolved thread ids with the `reviewThreads` field on `repository.pullReq
 Arm a background watch so the cleanup happens when the PR lands, not when someone
 remembers it:
 ```bash
-until [ "$(gh pr view <N> --json state -q .state)" != OPEN ]; do sleep 300; done
-gh pr view <N> --json state -q .state
+until state=$(gh pr view <N> --json state -q .state 2>/dev/null) \
+  && { [ "$state" = MERGED ] || [ "$state" = CLOSED ]; }; do sleep 300; done
+echo "$state"
 ```
+A failed query leaves `state` empty or unchanged and the loop keeps waiting, so a
+network blip never reads as the end of the PR.
 `MERGED` → run the `cleaning-up-after-merge` skill. `CLOSED` → report it and leave the
 worktree. A session that ends first is covered by the `workspace-hygiene` hook.
