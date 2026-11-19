@@ -61,9 +61,10 @@ for _ in $(seq 1 60); do
   [ "$settled" -ge 2 ] && break
   sleep 30
 done
+[ "$settled" -ge 2 ] || echo "TIMED OUT: checks still pending"
 gh pr checks <N>
 ```
-`gh pr checks` exits 8 while a check is pending, 1 on a failure and 0 when all passed. Before any check has registered it also exits 1, with "no checks reported", so that counts as pending.
+`gh pr checks` exits 8 while a check is pending, 1 on a failure and 0 when all passed. A failure ends the wait early, since it needs action anyway. Before any check has registered it also exits 1, with "no checks reported", so that counts as pending.
 The minute's head start lets CI register its first job; the second poll covers a `needs:`
 job that appears only once its prerequisite finishes.
 
@@ -73,7 +74,34 @@ completed" can hold before CI has registered. `gh pr checks --watch` started rig
 `gh pr create` exits green for the same reason. On failure, read `gh run view <run-id> --log-failed`.
 
 ### 7b. Automated review
-Read the review, including inline comments, which `gh pr view --json comments` does
+<!-- ADAPT: keep only the reviewers the repo uses. -->
+Wait until every reviewer has finished on the head commit — in the background, capped at
+30 minutes:
+```bash
+SHA=$(gh pr view <N> --json headRefOid -q .headRefOid)
+copilot_done() {
+  gh pr view <N> --json reviews --jq \
+    "any(.reviews[]; .author.login == \"copilot-pull-request-reviewer\" and .commit.oid == \"$SHA\")" \
+    | grep -qx true
+}
+codex_done() {
+  gh pr view <N> --json comments \
+    --jq '[.comments[].body | select(contains("codex-review-state:v1"))] | last // ""' \
+    | grep -o 'codex-review-state:v1 {.*}' | sed 's/^codex-review-state:v1 //' \
+    | jq -e --arg sha "$SHA" '.code_review | .commit_sha == $sha and .status == "completed"' >/dev/null
+}
+for _ in $(seq 1 60); do
+  copilot_done && codex_done && break
+  sleep 30
+done
+copilot_done && codex_done || echo "TIMED OUT: no finished review on $SHA"
+```
+Wait for each reviewer separately. Copilot's quota notice is a review that arrives within
+seconds, and Codex posts a review only when it has findings; its summary comment's
+`codex-review-state` is what says it finished. Neither re-reviews a push by itself: after
+one, ask with `@codex review` or report the timeout.
+
+Then read the review, including inline comments, which `gh pr view --json comments` does
 not show:
 ```bash
 gh pr view <N> --json reviews --jq '.reviews[] | "\(.author.login) [\(.state)]: \(.body)"'
