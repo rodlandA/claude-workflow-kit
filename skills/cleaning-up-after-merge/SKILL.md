@@ -5,8 +5,9 @@ description: Use after a pull request is merged to reclaim the workspace — rem
 
 # Cleaning up after a merge
 
-The bookend to creating a worktree. The `workspace-hygiene` hook keeps saying the default
-branch is behind until this is done.
+The bookend to creating a worktree. The `workspace-hygiene` hook lists the worktrees whose
+PR is merged at session start, and keeps saying the default branch is behind until this is
+done.
 
 **Squash merges:** the branch tip never appears in the default branch's history, so
 `git branch -d` reports "not merged". That is expected. The safety check is the PR state,
