@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Event: SessionStart. Layer: global or project.
-# Problem: work started directly on the default branch in the main checkout, and a
-#   default branch that has silently fallen behind origin.
-# Behaviour: read-only (no fetch), silent unless there is something to act on.
-# Assumes: git, jq. Default branch from origin/HEAD, falling back to main/master/develop/trunk.
+# Problem: work started directly on the default branch in the main checkout, a default
+#   branch that has silently fallen behind origin, and merged worktrees nobody cleaned up.
+# Behaviour: no fetch and no writes; one gh call for the merge check, skipped without gh.
+#   Silent unless there is something to act on.
+# Assumes: git, jq; gh for the merge check. Default branch from origin/HEAD, falling back to main/master/develop/trunk.
 # Adapt: WORKTREE_HINT, if worktrees do not live as siblings of the repo.
 
 set -u
@@ -57,6 +58,28 @@ if git rev-parse --verify --quiet "refs/remotes/origin/${default_branch}" >/dev/
   if [ "$behind" -gt 0 ]; then
     msgs="${msgs}\`${default_branch}\` is ${behind} commit(s) behind origin (as of last fetch) — update it in the main checkout. "
   fi
+fi
+
+# A worktree counts only while its HEAD is the merged head or behind it.
+merged_worktrees() {
+  command -v gh >/dev/null 2>&1 || return 0
+  local merged
+  merged=$(gh pr list --state merged --limit 100 --json headRefName,headRefOid \
+    --jq '.[] | "\(.headRefName)\t\(.headRefOid)"' 2>/dev/null) || return 0
+  [ -z "$merged" ] && return 0
+  git worktree list --porcelain 2>/dev/null \
+    | awk '/^worktree / { p = substr($0, 10) } /^branch / { sub("refs/heads/", "", $2); print p "\t" $2 }' \
+    | while IFS=$'\t' read -r path wt_branch; do
+        head=$(awk -F'\t' -v b="$wt_branch" '$1 == b { print $2; exit }' <<<"$merged")
+        if [ -n "$head" ] && git -C "$path" merge-base --is-ancestor HEAD "$head" 2>/dev/null; then
+          printf '%s\n' "$path"
+        fi
+      done
+}
+
+merged=$(merged_worktrees | paste -sd ',' - | sed 's/,/, /g')
+if [ -n "$merged" ]; then
+  msgs="${msgs}These worktrees' PRs are merged — run the cleaning-up-after-merge skill for each: ${merged}. "
 fi
 
 msgs="${msgs% }"

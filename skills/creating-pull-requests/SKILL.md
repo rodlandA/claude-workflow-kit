@@ -81,3 +81,13 @@ gh api graphql -f id="<threadId>" -f query='
   mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }'
 ```
 List unresolved thread ids with the `reviewThreads` field on `repository.pullRequest`.
+
+### 7c. Watch for the merge
+Arm a background watch so the cleanup happens when the PR lands, not when someone
+remembers it:
+```bash
+until [ "$(gh pr view <N> --json state -q .state)" != OPEN ]; do sleep 300; done
+gh pr view <N> --json state -q .state
+```
+`MERGED` → run the `cleaning-up-after-merge` skill. `CLOSED` → report it and leave the
+worktree. A session that ends first is covered by the `workspace-hygiene` hook.
