@@ -2,7 +2,8 @@
 # Event: SessionStart. Layer: global or project.
 # Problem: work started directly on the default branch in the main checkout, a default
 #   branch that has silently fallen behind origin, and merged worktrees nobody cleaned up.
-# Behaviour: no fetch and no writes; one gh call for the merge check, skipped without gh.
+# Behaviour: no writes beyond fetching a merged head by SHA when it is missing; one gh call
+#   per worktree for the merge check, skipped without gh.
 #   Silent unless there is something to act on.
 # Assumes: git, jq; gh for the merge check. Default branch from origin/HEAD, falling back to main/master/develop/trunk.
 # Adapt: WORKTREE_HINT, if worktrees do not live as siblings of the repo.
@@ -65,7 +66,11 @@ report_if_merged() {
   local path=$1 wt_branch=$2 head
   head=$(gh pr list --state merged --head "$wt_branch" --limit 1 --json headRefOid \
     --jq '.[0].headRefOid // empty' 2>/dev/null)
-  if [ -n "$head" ] && git -C "$path" merge-base --is-ancestor HEAD "$head" 2>/dev/null; then
+  [ -z "$head" ] && return 0
+  # A merged head made on GitHub (a suggestion committed in the UI) is not local yet.
+  git -C "$path" cat-file -e "$head^{commit}" 2>/dev/null \
+    || git -C "$path" fetch -q origin "$head" 2>/dev/null || return 0
+  if git -C "$path" merge-base --is-ancestor HEAD "$head" 2>/dev/null; then
     printf '%s\n' "$path"
   fi
 }
@@ -74,7 +79,7 @@ report_if_merged() {
 merged_worktrees() {
   command -v gh >/dev/null 2>&1 || return 0
   git worktree list --porcelain 2>/dev/null \
-    | awk '/^worktree / { p = substr($0, 10) } /^branch / { sub("refs/heads/", "", $2); print p "\t" $2 }' \
+    | awk '/^worktree / { p = substr($0, 10); n++ } /^branch / && n > 1 { sub("refs/heads/", "", $2); print p "\t" $2 }' \
     | while IFS=$'\t' read -r path wt_branch; do
         report_if_merged "$path" "$wt_branch" &
       done
