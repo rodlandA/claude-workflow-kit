@@ -46,20 +46,31 @@ Opening the PR is not the end of the task. Report what follows without being ask
 <!-- ADAPT: delete 7a if the repo has no CI. Delete 7b whole if no automated reviewer (e.g. Copilot) is enabled, and then also drop "and the automated review" from the description in the frontmatter. -->
 
 ### 7a. CI
-Wait for every workflow run on the PR's head commit to complete — run the loop in the
-background. It gives up after 30 minutes, since a path filter or a disabled workflow
-means no run ever starts:
+Wait until no check is pending — run the loop in the background. It ends after two
+settled polls in a row, and gives up after 30 minutes:
 ```bash
-SHA=$(gh pr view <N> --json headRefOid -q .headRefOid)
+sleep 60
+settled=0
 for _ in $(seq 1 60); do
-  gh run list --commit "$SHA" --json status --jq 'length > 0 and all(.[]; .status == "completed")' \
-    | grep -qx true && break
+  gh pr checks <N> >/dev/null 2>&1
+  if [ $? -ne 8 ]; then
+    settled=$((settled + 1))
+  else
+    settled=0
+  fi
+  [ "$settled" -ge 2 ] && break
   sleep 30
 done
 gh pr checks <N>
 ```
-`gh pr checks --watch` started right after `gh pr create` can exit green before CI has
-even registered its jobs — do not rely on it. On failure, read `gh run view <run-id> --log-failed`.
+`gh pr checks` exits 8 while a check is pending, 1 on a failure and 0 when all passed.
+The minute's head start lets CI register its first job; the second poll covers a `needs:`
+job that appears only once its prerequisite finishes.
+
+Do not wait on `gh run list --commit` instead: it also lists runs that are not CI, such as
+GitHub's dependency submission, which may already be complete on the commit, so "every run
+completed" can hold before CI has registered. `gh pr checks --watch` started right after
+`gh pr create` exits green for the same reason. On failure, read `gh run view <run-id> --log-failed`.
 
 ### 7b. Automated review
 Read the review, including inline comments, which `gh pr view --json comments` does
