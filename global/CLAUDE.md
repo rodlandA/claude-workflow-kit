@@ -49,6 +49,10 @@ project-only, keep the whole section: it is what applies in every other repo. --
 <!-- ADAPT: if rules/working-principles.md is installed in ~/.claude/rules/, delete this
 section — that file covers it at length. Keep it if the principles are project-only. -->
 
+- **A reminder from me means documentation is missing.** When I have to remind you of
+  something, close the gap in the same turn: write it where the next session loads it —
+  global when it holds across projects, the project's rules, skill or memory when it is
+  project-specific. Then say where you put it.
 - **Explain before changing.** State the root cause and the proposed fix before editing
   code. Don't open with a patch.
 - **Verify before claiming done.** Run the command, read the output, quote it. "Should
