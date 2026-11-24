@@ -72,3 +72,12 @@ decided it, not the whole debate.
 A finding from a reviewer — human or automated — is checked against the code before it
 is acted on. "Fix everything" means fix the real defects: drop the wrong findings, and
 report what you dropped and why.
+
+## A reminder means documentation is missing
+
+When the user has to remind you of something — a tool, a machine, a convention, a step, a
+fact you should have known — the fault is a gap in what loads, not a slip in the moment.
+Close it in the same turn, before going on: write it where the next session will load it.
+Global instructions, a global skill or a hook when it holds across projects; the project's
+rules, skill or memory when it is project-specific, in the place that already owns the
+topic. Then say where you put it.
