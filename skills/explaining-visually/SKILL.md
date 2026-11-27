@@ -114,7 +114,7 @@ Prefer a drawing. A live figure is for what no drawing shows: a 3D shape the rea
    - `[slug] APPROVE <id> :: …` — see Approval
 
    On expiry, re-arm the same command at once. Exception: when this expiry and the previous one both delivered no events, do not re-arm; tell the user in one line that you stopped listening, and that clicking the status pill on the page shows what to send to resume. When they send it ("Pick up the comments on <slug> and listen again"), start again from step 1.
-4. **Per comment** — revise (below); once the Edit has succeeded, in a separate call: `SERVE --reply <id> "<what changed, or the answer>"`. One reply per comment, always. A reply is credited with every line changed since your previous reply, so edit first, then reply. A quote starting with `↩` is your own earlier reply: the comment continues that thread.
+4. **Per comment** — revise (below); once the Edit has succeeded, in a separate call: `SERVE --reply <id> "<what changed, or the answer>"`. One reply per comment, always, in the page's language — a rule to write git artefacts in English does not reach it — and two or three sentences: the substance goes on the page, not in the thread. A reply is credited with every line changed since your previous reply, so edit first, then reply. A quote starting with `↩` is your own earlier reply: the comment continues that thread.
 5. **Done** — when the user says so, TaskStop your watcher, and the server if you started it.
 
 `SERVE <slug> --export out.html` writes a standalone copy for sharing.
